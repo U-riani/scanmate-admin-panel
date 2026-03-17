@@ -1,0 +1,83 @@
+# =========================
+# Root / General
+# =========================
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# =========================
+# Frontend (React + Vite)
+# =========================
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+# Optional cache files
+frontend/.eslintcache
+
+# =========================
+# Backend (FastAPI / Python)
+# =========================
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+
+# Virtual environments
+backend/venv/
+backend/.venv/
+backend/env/
+backend/ENV/
+
+# Python build / packaging
+backend/build/
+backend/dist/
+backend/*.egg-info/
+backend/.eggs/
+
+# Python tooling caches
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/.coverage
+backend/htmlcov/
+
+# Jupyter / misc
+backend/.ipynb_checkpoints/
+
+# =========================
+# Database / local runtime files
+# =========================
+backend/*.sqlite3
+backend/*.db
+
+# =========================
+# Uploads / generated files
+# =========================
+backend/uploads/
+backend/media/
+backend/staticfiles/
+
+# =========================
+# Temporary files
+# =========================
+tmp/
+temp/
+*.tmp

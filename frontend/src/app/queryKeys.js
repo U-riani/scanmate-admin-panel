@@ -1,0 +1,17 @@
+export const QUERY_KEYS = {
+  inventorizations: ["inventorizations"],
+  inventorizationLines: (documentId) => ["inventorizationLines", documentId],
+  pocketRoles: ["pocketRoles"],
+  pocketUsers: ["pocketUsers"],
+  priceLookup: (warehouseId, barcode) => ["priceLookup", warehouseId, barcode],
+  priceUploads: ["priceUploads"],
+  priceUpload: (uploadId) => ["priceUpload", uploadId],
+  priceRows: (uploadId) => ["priceRows", uploadId],
+  activePriceUpload: (warehouseId) => ["activePriceUpload", warehouseId],
+  transfers: ["transfers"],
+  transferLines: (documentId) => ["transferLines", documentId],
+  users: ["users"],
+  warehouses: ["warehouses"],
+  websiteRoles: ["websiteRoles"],
+  websiteUsers: ["websiteUsers"],
+};

@@ -1,0 +1,15 @@
+export const MODULES  = [
+    "dashboard",
+    "inventorization",
+    "transfer",
+    "receive",
+    "sales",
+    "users",
+    "website_users",
+    "website_roles",
+    "pocket_users",
+    "pocket_roles",
+    "warehouses",
+    "settings",
+    "report",
+  ];
