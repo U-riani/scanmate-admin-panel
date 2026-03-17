@@ -1,12 +1,39 @@
 # backend/app/db/seed.py
 
 from datetime import datetime, timezone
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.models.models import Inventorization, InventorizationLine, PocketRole, PocketUser, PriceRow, PriceUpload, Transfer, TransferLine, Warehouse, WarehouseProduct, WebsiteRole, WebsiteUser
 from app.models.enums import DocumentType, InventorizationStatus, PriceType, PriceUploadStatus, SignatureStatus, TransferStatus
+
+# Tables that have rows inserted with explicit IDs in seed data.
+# After seeding we must advance PostgreSQL sequences to avoid PK conflicts on first real INSERT.
+_SEEDED_TABLES = [
+    'warehouses',
+    'website_roles',
+    'pocket_roles',
+    'website_users',
+    'pocket_users',
+    'warehouse_products',
+    'transfers',
+    'transfer_lines',
+    'inventorizations',
+    'inventorization_lines',
+    'price_uploads',
+    'price_rows',
+]
+
+
+def _reset_sequences(db) -> None:
+    """Advance each table's PK sequence to MAX(id) so new INSERTs don't collide with seed rows."""
+    for table in _SEEDED_TABLES:
+        db.execute(text(
+            f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), "
+            f"COALESCE((SELECT MAX(id) FROM {table}), 0))"
+        ))
+    db.commit()
 
 
 def seed_database():
@@ -95,5 +122,8 @@ def seed_database():
         ])
 
         db.commit()
+
+        # Advance sequences so the first real INSERT doesn't collide with seed IDs
+        _reset_sequences(db)
     finally:
         db.close()

@@ -11,6 +11,7 @@ import WarehouseProductSelector from "../../components/transfer/WarehouseProduct
 import ExcelImportModal from "../../components/transfer/ExcelImportModal";
 import StatusBadge from "../../components/documents/StatusBadge";
 import { TRANSFER_FLOW } from "../../config/transferStatusFlow";
+import { downloadTemplate, TEMPLATES } from "../../utils/excel/downloadTemplate";
 
 export default function TransferDetail() {
   const { id } = useParams();
@@ -84,6 +85,16 @@ export default function TransferDetail() {
         <div className="flex gap-2 flex-wrap">
           <button className="btn btn-secondary btn-sm" onClick={() => setAddModal(true)}>
             + Add Product
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => downloadTemplate(TEMPLATES.transferLines.headers, TEMPLATES.transferLines.filename)}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Template
           </button>
           <button className="btn btn-success btn-sm" onClick={() => setExcelModal(true)}>
             Import Excel

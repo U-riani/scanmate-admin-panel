@@ -38,7 +38,9 @@ export default function InventorizationList() {
 
   if (isLoading) return <LoadingSkeleton />;
 
-  const filtered = docs.filter((d) => d.warehouse_id === currentWarehouseId);
+  const filtered = currentWarehouseId
+    ? docs.filter((d) => d.warehouse_id === currentWarehouseId)
+    : docs;
 
   function getWarehouseName(id) {
     return warehouses.find((w) => w.id === id)?.name ?? "—";
@@ -63,7 +65,7 @@ export default function InventorizationList() {
         <div>
           <h1 className="page-title">Inventorization</h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.8125rem", marginTop: "2px" }}>
-            {filtered.length} document{filtered.length !== 1 ? "s" : ""} in current warehouse
+            {filtered.length} document{filtered.length !== 1 ? "s" : ""}{currentWarehouseId ? " in current warehouse" : " across all warehouses"}
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>

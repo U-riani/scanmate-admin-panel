@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { useUpdatePocketUser } from "../../queries/pocketUsersMutation";
 import { usePocketRoles } from "../../queries/pocketRolesQuery";
+import { useWarehouses } from "../../queries/warehouseQuery";
 
 export default function EditUserModal({ user, open, onClose }) {
   const { mutate } = useUpdatePocketUser();
   const { data: roles = [] } = usePocketRoles();
+  const { data: warehouses = [] } = useWarehouses();
 
   const [form, setForm] = useState({
     username: "", role_id: "", warehouses: [], active: true,
@@ -62,18 +64,30 @@ export default function EditUserModal({ user, open, onClose }) {
           </div>
 
           <div>
-            <label className="field-label">Warehouses (comma-separated IDs)</label>
-            <input
-              value={form.warehouses.join(",")}
-              placeholder="1,2,3"
-              className="glass-input font-mono"
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  warehouses: e.target.value.split(",").map((w) => Number(w.trim())).filter(Boolean),
-                })
-              }
-            />
+            <label className="field-label">Warehouses</label>
+            <div className="space-y-1.5 mt-1">
+              {warehouses.map((w) => (
+                <label key={w.id} className="flex items-center gap-2.5" style={{ cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    className="glass-checkbox"
+                    checked={(form.warehouses || []).includes(w.id)}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        warehouses: e.target.checked
+                          ? [...(form.warehouses || []), w.id]
+                          : (form.warehouses || []).filter((id) => id !== w.id),
+                      })
+                    }
+                  />
+                  <span style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>{w.name}</span>
+                </label>
+              ))}
+              {warehouses.length === 0 && (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>No warehouses found</p>
+              )}
+            </div>
           </div>
 
           <label className="flex items-center gap-2.5" style={{ cursor: "pointer" }}>

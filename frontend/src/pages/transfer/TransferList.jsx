@@ -38,9 +38,9 @@ export default function TransferList() {
 
   if (isLoading) return <LoadingSkeleton />;
 
-  const filtered = docs.filter(
-    (d) => d.from_warehouse_id === currentWarehouseId || d.to_warehouse_id === currentWarehouseId,
-  );
+  const filtered = currentWarehouseId
+    ? docs.filter((d) => d.from_warehouse_id === currentWarehouseId || d.to_warehouse_id === currentWarehouseId)
+    : docs;
 
   function getWarehouseName(id) {
     return warehouses.find((w) => w.id === id)?.name ?? "—";
@@ -61,7 +61,7 @@ export default function TransferList() {
         <div>
           <h1 className="page-title">Transfers</h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.8125rem", marginTop: "2px" }}>
-            {filtered.length} transfer{filtered.length !== 1 ? "s" : ""} involving this warehouse
+            {filtered.length} transfer{filtered.length !== 1 ? "s" : ""}{currentWarehouseId ? " involving this warehouse" : " across all warehouses"}
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>

@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { usePriceUpload, usePriceRows } from "../../queries/priceUploadsQuery";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import ImportPriceExcelModal from "../../components/sales/ImportPriceExcelModal";
+import { downloadTemplate, TEMPLATES } from "../../utils/excel/downloadTemplate";
 
 function LoadingSkeleton() {
   return (
@@ -71,6 +72,16 @@ export default function PriceUploadDetail() {
             {upload.file_name}
           </p>
         </div>
+        <button
+          className="btn btn-secondary"
+          onClick={() => downloadTemplate(TEMPLATES.priceRows.headers, TEMPLATES.priceRows.filename)}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Download Template
+        </button>
         <button className="btn btn-secondary" onClick={() => setImportOpen(true)}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>

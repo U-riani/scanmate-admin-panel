@@ -10,6 +10,7 @@ import { preloadLinesFromWarehouse } from "../../api/inventorizationLinesService
 import StatusBadge from "../../components/documents/StatusBadge";
 import ImportInventorizationExcelModal from "../../components/inventorization/ImportInventorizationExcelModal";
 import { INVENTORIZATION_FLOW } from "../../config/inventorizationStatusFlow";
+import { downloadTemplate, TEMPLATES } from "../../utils/excel/downloadTemplate";
 
 export default function InventorizationDetail() {
   const { id } = useParams();
@@ -89,6 +90,16 @@ export default function InventorizationDetail() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => downloadTemplate(TEMPLATES.inventorizationLines.headers, TEMPLATES.inventorizationLines.filename)}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Download Template
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={() => setImportOpen(true)}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
