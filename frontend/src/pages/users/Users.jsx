@@ -1,11 +1,7 @@
-// frontend/src/pages/users/Users.jsx
-
-import React from 'react'
-
-const Users = () => {
+export default function Users() {
   return (
-    <div>Users</div>
-  )
+    <div className="glass-card p-8 text-center" style={{ color: "var(--text-secondary)" }}>
+      Users — coming soon
+    </div>
+  );
 }
-
-export default Users

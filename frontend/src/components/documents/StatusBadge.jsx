@@ -1,28 +1,17 @@
-// src/components/documents/StatusBadge.jsx
-
 export default function StatusBadge({ status }) {
-
-  const styles = {
-    draft: "bg-gray-200 text-gray-700",
-    in_progress: "bg-blue-200 text-blue-800",
-    recount_progress: "bg-orange-200 text-orange-800",
-    confirmed: "bg-green-200 text-green-800",
-    closed: "bg-gray-800 text-white",
+  const map = {
+    draft:            { cls: "badge-draft",     label: "Draft" },
+    in_progress:      { cls: "badge-progress",  label: "In Progress" },
+    recount_progress: { cls: "badge-recount",   label: "Recount" },
+    confirmed:        { cls: "badge-confirmed", label: "Confirmed" },
+    closed:           { cls: "badge-closed",    label: "Closed" },
+    open_sender:      { cls: "badge-progress",  label: "Open – Sender" },
+    sender_finished:  { cls: "badge-recount",   label: "Sender Done" },
+    open_receiver:    { cls: "badge-progress",  label: "Open – Receiver" },
+    receiver_finished:{ cls: "badge-confirmed", label: "Receiver Done" },
   };
 
-  const labels = {
-    draft: "Draft",
-    in_progress: "In Progress",
-    recount_progress: "Recount",
-    confirmed: "Confirmed",
-    closed: "Closed",
-  };
+  const { cls = "badge-draft", label = status } = map[status] || {};
 
-  return (
-    <span
-      className={`px-2 py-1 text-xs rounded ${styles[status]}`}
-    >
-      {labels[status]}
-    </span>
-  );
+  return <span className={`badge ${cls}`}>{label}</span>;
 }

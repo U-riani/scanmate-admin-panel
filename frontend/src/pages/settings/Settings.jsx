@@ -1,12 +1,12 @@
-// frontend/src/pages/settings/Settings.jsx
-
 export default function Settings() {
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">System Settings</h1>
-      <p className="text-gray-600 mt-2">
-        Only Super Admin can access this page.
-      </p>
+    <div className="space-y-4">
+      <h1 className="page-title">System Settings</h1>
+      <div className="glass-card p-6">
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
+          Only Super Admin can access this page.
+        </p>
+      </div>
     </div>
   );
 }

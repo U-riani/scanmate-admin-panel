@@ -1,115 +1,89 @@
-// frontend/src/components/users/CreatePocketRoleModal.jsx
-
 import { useState } from "react";
 import { useCreatePocketRole } from "../../queries/pocketRolesMutation";
 
+const POCKET_MODULES = ["inventorization", "transfer", "receive", "sales"];
+
 export default function CreatePocketRoleModal({ open, onClose }) {
   const { mutate, isPending } = useCreatePocketRole();
-
   const [form, setForm] = useState({
     name: "",
     description: "",
-    modules: {
-      inventorization: false,
-      transfer: false,
-      receive: false,
-      sales: false,
-    },
+    modules: { inventorization: false, transfer: false, receive: false, sales: false },
   });
 
   if (!open) return null;
 
+  function toggleModule(moduleName) {
+    setForm((prev) => ({
+      ...prev,
+      modules: { ...prev.modules, [moduleName]: !prev.modules[moduleName] },
+    }));
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
-
     mutate(form, {
       onSuccess: () => {
-        setForm({
-          name: "",
-          description: "",
-          modules: {
-            inventorization: false,
-            transfer: false,
-            receive: false,
-            sales: false,
-          },
-        });
+        setForm({ name: "", description: "", modules: { inventorization: false, transfer: false, receive: false, sales: false } });
         onClose();
       },
     });
   }
 
-  function toggleModule(moduleName) {
-    setForm((prev) => ({
-      ...prev,
-      modules: {
-        ...prev.modules,
-        [moduleName]: !prev.modules[moduleName],
-      },
-    }));
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-[460px] rounded bg-white p-6 shadow">
-        <h2 className="mb-4 text-lg font-semibold">Create Pocket Role</h2>
+    <div className="glass-modal-backdrop">
+      <div className="glass-modal" style={{ width: 440 }}>
+        <div className="glass-modal-header">
+          <h2 className="glass-modal-title">Create Pocket Role</h2>
+          <button className="glass-modal-close" onClick={onClose}>✕</button>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            value={form.name}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, name: e.target.value }))
-            }
-            placeholder="Role name"
-            className="w-full rounded border p-2"
-            required
-          />
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="field-label">Role Name</label>
+            <input
+              value={form.name}
+              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. Warehouse Staff"
+              className="glass-input"
+              required
+            />
+          </div>
 
-          <input
-            value={form.description}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, description: e.target.value }))
-            }
-            placeholder="Role description"
-            className="w-full rounded border p-2"
-            required
-          />
+          <div>
+            <label className="field-label">Description</label>
+            <input
+              value={form.description}
+              onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+              placeholder="Optional description"
+              className="glass-input"
+            />
+          </div>
 
-          <div className="rounded border p-3">
-            <div className="mb-2 font-medium">Module Permissions</div>
-
-            <div className="space-y-2">
-              {["inventorization", "transfer", "receive", "sales"].map(
-                (module) => (
-                  <label key={module} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={form.modules[module]}
-                      onChange={() => toggleModule(module)}
-                    />
-                    <span className="capitalize">{module}</span>
-                  </label>
-                )
-              )}
+          <div>
+            <label className="field-label">Module Permissions</label>
+            <div className="glass-card p-3 space-y-2 mt-1" style={{ background: "rgba(255,255,255,0.02)" }}>
+              {POCKET_MODULES.map((module) => (
+                <label key={module} className="flex items-center gap-2.5" style={{ cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    className="glass-checkbox"
+                    checked={form.modules[module]}
+                    onChange={() => toggleModule(module)}
+                  />
+                  <span style={{ color: "var(--text-secondary)", fontSize: "0.875rem", textTransform: "capitalize" }}>
+                    {module}
+                  </span>
+                </label>
+              ))}
             </div>
           </div>
 
           <div className="flex gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded bg-sky-600 px-4 py-2 text-white hover:bg-sky-700 disabled:opacity-60"
-            >
-              {isPending ? "Creating..." : "Create"}
+            <button type="submit" disabled={isPending} className="btn btn-primary" style={{ flex: 1 }}>
+              {isPending ? "Creating…" : "Create Role"}
             </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded border px-4 py-2 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
+            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
           </div>
         </form>
       </div>

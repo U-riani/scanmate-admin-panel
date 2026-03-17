@@ -1,9 +1,7 @@
-import React from 'react'
-
-const Sales = () => {
+export default function Sales() {
   return (
-    <div>Sales</div>
-  )
+    <div className="glass-card p-8 text-center" style={{ color: "var(--text-secondary)" }}>
+      Sales — coming soon
+    </div>
+  );
 }
-
-export default Sales

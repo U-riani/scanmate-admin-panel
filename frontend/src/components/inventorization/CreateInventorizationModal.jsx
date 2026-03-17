@@ -1,5 +1,3 @@
-// src/components/inventorization/CreateInventorizationModal.jsx
-
 import { useState } from "react";
 import { useCreateInventorization } from "../../queries/inventorizationMutation";
 import { useWarehouseStore } from "../../store/warehouseStore";
@@ -9,67 +7,46 @@ import { mockPocketRoles } from "../../data/mockPocketRoles";
 
 export default function CreateInventorizationModal({ open, onClose }) {
   const { mutate, isPending } = useCreateInventorization();
-
   const { data: users = [] } = usePocketUsers();
   const { data: warehouses = [] } = useWarehouses();
-
   const currentWarehouseId = useWarehouseStore((s) => s.currentWarehouseId);
-
   const warehouse = warehouses.find((w) => w.id === currentWarehouseId);
 
   const [form, setForm] = useState({
-    name: "",
-    type: "barcode",
-    employees: [],
-    description: "",
+    name: "", type: "barcode", employees: [], description: "",
   });
 
   if (!open) return null;
 
-  // Filter employees according to rules
   const allowedEmployees = users.filter((u) => {
     const role = mockPocketRoles.find((r) => r.id === u.role_id);
-
-    const warehouseAllowed = (u.warehouses || []).includes(currentWarehouseId);
-
-    const moduleAllowed = role?.modules?.inventorization === true;
-
-    const active = u.active === true;
-
-    return warehouseAllowed && moduleAllowed && active;
+    return (
+      (u.warehouses || []).includes(currentWarehouseId) &&
+      role?.modules?.inventorization === true &&
+      u.active === true
+    );
   });
 
   function handleChange(e) {
     const { name, value } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   }
 
   function toggleEmployee(id) {
-    if (form.employees.includes(id)) {
-      setForm((prev) => ({
-        ...prev,
-        employees: prev.employees.filter((e) => e !== id),
-      }));
-    } else {
-      setForm((prev) => ({
-        ...prev,
-        employees: [...prev.employees, id],
-      }));
-    }
+    setForm((prev) => ({
+      ...prev,
+      employees: prev.employees.includes(id)
+        ? prev.employees.filter((e) => e !== id)
+        : [...prev.employees, id],
+    }));
   }
 
   function handleSubmit(e) {
     e.preventDefault();
-
     if (!currentWarehouseId) {
       alert("Please select a warehouse first.");
       return;
     }
-
     mutate(
       {
         name: form.name,
@@ -81,102 +58,110 @@ export default function CreateInventorizationModal({ open, onClose }) {
       {
         onSuccess: () => {
           onClose();
-
-          // reset form
-          setForm({
-            name: "",
-            type: "barcode",
-            employees: [],
-            description: "",
-          });
+          setForm({ name: "", type: "barcode", employees: [], description: "" });
         },
-      },
+      }
     );
   }
-  console.log("warehouse:", currentWarehouseId);
-  console.log("users:", users);
-  console.log("allowedEmployees:", allowedEmployees);
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-      <div className="bg-white p-6 rounded shadow w-[450px]">
-        <h2 className="text-lg font-semibold mb-4">Create Inventorization</h2>
 
-        <div className="text-sm text-gray-500 mb-4">
-          Warehouse:{" "}
-          <span className="font-medium">
-            {warehouse?.name || "Not selected"}
+  return (
+    <div className="glass-modal-backdrop">
+      <div className="glass-modal" style={{ width: 460 }}>
+        <div className="glass-modal-header">
+          <h2 className="glass-modal-title">Create Inventorization</h2>
+          <button className="glass-modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4"
+          style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.15)" }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            style={{ color: "var(--accent-cyan)" }}>
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          </svg>
+          <span style={{ color: "var(--text-secondary)", fontSize: "0.8125rem" }}>
+            Warehouse:{" "}
+            <span style={{ color: "var(--accent-cyan)", fontWeight: 600 }}>
+              {warehouse?.name || "Not selected"}
+            </span>
           </span>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            name="name"
-            placeholder="Inventorization name"
-            className="w-full border p-2 rounded"
-            value={form.name}
-            onChange={handleChange}
-            required
-          />
-
-          <select
-            name="type"
-            className="w-full border p-2 rounded"
-            value={form.type}
-            onChange={handleChange}
-          >
-            <option value="barcode">Barcode based</option>
-
-            <option value="box">Box based</option>
-          </select>
+          <div>
+            <label className="field-label">Name</label>
+            <input
+              name="name"
+              placeholder="Inventorization name"
+              className="glass-input"
+              value={form.name}
+              onChange={handleChange}
+              required
+            />
+          </div>
 
           <div>
-            <div className="text-sm font-medium mb-1">Assigned Employees</div>
+            <label className="field-label">Type</label>
+            <select name="type" className="glass-select" value={form.type} onChange={handleChange}>
+              <option value="barcode">Barcode based</option>
+              <option value="box">Box based</option>
+            </select>
+          </div>
 
-            <div className="max-h-32 overflow-y-auto border rounded p-2">
-              {allowedEmployees.length === 0 && (
-                <div className="text-xs text-gray-400">
+          <div>
+            <label className="field-label">Assigned Employees</label>
+            <div
+              className="mt-1 rounded-xl p-3 space-y-2"
+              style={{
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid var(--glass-border)",
+                maxHeight: 140,
+                overflowY: "auto",
+              }}
+            >
+              {allowedEmployees.length === 0 ? (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                   No available employees for this warehouse
-                </div>
+                </p>
+              ) : (
+                allowedEmployees.map((u) => (
+                  <label key={u.id} className="flex items-center gap-2.5" style={{ cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      className="glass-checkbox"
+                      checked={form.employees.includes(u.id)}
+                      onChange={() => toggleEmployee(u.id)}
+                    />
+                    <span style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>{u.username}</span>
+                  </label>
+                ))
               )}
-
-              {allowedEmployees.map((u) => (
-                <label key={u.id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={form.employees.includes(u.id)}
-                    onChange={() => toggleEmployee(u.id)}
-                  />
-
-                  {u.username}
-                </label>
-              ))}
             </div>
           </div>
 
-          <textarea
-            name="description"
-            placeholder="Optional description"
-            className="w-full border p-2 rounded"
-            value={form.description}
-            onChange={handleChange}
-          />
+          <div>
+            <label className="field-label">Description</label>
+            <textarea
+              name="description"
+              placeholder="Optional description"
+              className="glass-textarea"
+              value={form.description}
+              onChange={handleChange}
+              rows={3}
+            />
+          </div>
 
           <div className="flex gap-2 pt-2">
             <button
               type="submit"
               disabled={!currentWarehouseId || isPending}
-              className="bg-sky-600 text-white px-4 py-2 rounded"
+              className="btn btn-primary"
+              style={{ flex: 1 }}
             >
-              {isPending ? "Creating..." : "Create"}
+              {isPending ? "Creating…" : "Create Inventorization"}
             </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="border px-4 py-2 rounded"
-            >
-              Cancel
-            </button>
+            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
           </div>
         </form>
       </div>

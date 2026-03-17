@@ -1,87 +1,68 @@
-// src/components/settings/EditWarehouseModal.jsx
-
 import { useState, useEffect } from "react";
 import { useUpdateWarehouse } from "../../queries/warehouseMutation";
 
 export default function EditWarehouseModal({ warehouse, open, onClose }) {
-
   const { mutate } = useUpdateWarehouse();
-
-  const [form, setForm] = useState({
-    name: "",
-    code: "",
-    active: true,
-  });
+  const [form, setForm] = useState({ name: "", code: "", active: true });
 
   useEffect(() => {
-    if (warehouse) {
-      setForm(warehouse);
-    }
+    if (warehouse) setForm(warehouse);
   }, [warehouse]);
 
   if (!open || !warehouse) return null;
 
   function submit(e) {
     e.preventDefault();
-
-    mutate({
-      id: warehouse.id,
-      data: form,
-    });
-
+    mutate({ id: warehouse.id, data: form });
     onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-
-      <div className="w-[420px] rounded bg-white p-6 shadow">
-
-        <h2 className="mb-4 text-lg font-semibold">
-          Edit Warehouse
-        </h2>
+    <div className="glass-modal-backdrop">
+      <div className="glass-modal" style={{ width: 420 }}>
+        <div className="glass-modal-header">
+          <h2 className="glass-modal-title">Edit Warehouse</h2>
+          <button className="glass-modal-close" onClick={onClose}>✕</button>
+        </div>
 
         <form onSubmit={submit} className="space-y-3">
+          <div>
+            <label className="field-label">Warehouse Name</label>
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="glass-input"
+            />
+          </div>
 
-          <input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full border p-2 rounded"
-          />
+          <div>
+            <label className="field-label">Warehouse Code</label>
+            <input
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+              className="glass-input font-mono"
+            />
+          </div>
 
-          <input
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
-            className="w-full border p-2 rounded"
-          />
-
-          <label className="flex gap-2 items-center">
+          <label className="flex items-center gap-2.5" style={{ cursor: "pointer" }}>
             <input
               type="checkbox"
+              className="glass-checkbox"
               checked={form.active}
-              onChange={(e) =>
-                setForm({ ...form, active: e.target.checked })
-              }
+              onChange={(e) => setForm({ ...form, active: e.target.checked })}
             />
-            Active
+            <span style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>Active</span>
           </label>
 
           <div className="flex gap-2 pt-2">
-            <button className="bg-sky-600 text-white px-4 py-2 rounded">
-              Save
+            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+              Save Changes
             </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="border px-4 py-2 rounded"
-            >
+            <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancel
             </button>
           </div>
-
         </form>
-
       </div>
     </div>
   );

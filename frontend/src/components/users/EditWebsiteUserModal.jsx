@@ -1,5 +1,3 @@
-// frontend/src/components/users/EditWebsiteUserModal.jsx
-
 import { useEffect, useState } from "react";
 import { useUpdateWebsiteUser } from "../../queries/websiteUsersMutation";
 import { useWebsiteRoles } from "../../queries/websiteRolesQuery";
@@ -11,11 +9,7 @@ export default function EditWebsiteUserModal({ user, open, onClose }) {
   const { data: warehouses = [] } = useWarehouses();
 
   const [form, setForm] = useState({
-    username: "",
-    email: "",
-    role_id: 2,
-    warehouses: [],
-    active: true,
+    username: "", email: "", role_id: 2, warehouses: [], active: true,
   });
 
   useEffect(() => {
@@ -34,125 +28,84 @@ export default function EditWebsiteUserModal({ user, open, onClose }) {
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
+    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  }
 
+  function toggleWarehouse(id) {
     setForm((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      warehouses: (prev.warehouses || []).includes(id)
+        ? (prev.warehouses || []).filter((w) => w !== id)
+        : [...(prev.warehouses || []), id],
     }));
   }
 
   function handleSubmit(e) {
     e.preventDefault();
-
-    mutate(
-      {
-        id: user.id,
-        data: form,
-      },
-      {
-        onSuccess: () => {
-          onClose();
-        },
-      },
-    );
+    mutate({ id: user.id, data: form }, { onSuccess: () => onClose() });
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-[420px] rounded bg-white p-6 shadow">
-        <h2 className="mb-4 text-lg font-semibold">Edit Website User</h2>
+    <div className="glass-modal-backdrop">
+      <div className="glass-modal" style={{ width: 460 }}>
+        <div className="glass-modal-header">
+          <h2 className="glass-modal-title">Edit Website User</h2>
+          <button className="glass-modal-close" onClick={onClose}>✕</button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            name="username"
-            value={form.username}
-            onChange={handleChange}
-            placeholder="Username"
-            className="w-full rounded border p-2"
-            required
-          />
-
-          <input
-            name="email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="Email"
-            className="w-full rounded border p-2"
-            required
-          />
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Warehouses</label>
-
-            {warehouses.map((w) => (
-              <label key={w.id} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.warehouses?.includes(w.id)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setForm({
-                        ...form,
-                        warehouses: [...(form.warehouses || []), w.id],
-                      });
-                    } else {
-                      setForm({
-                        ...form,
-                        warehouses: (form.warehouses || []).filter(
-                          (id) => id !== w.id,
-                        ),
-                      });
-                    }
-                  }}
-                />
-
-                {w.name}
-              </label>
-            ))}
+          <div>
+            <label className="field-label">Username</label>
+            <input name="username" value={form.username} onChange={handleChange}
+              placeholder="Username" className="glass-input" required />
           </div>
-          <select
-            name="role_id"
-            value={form.role_id}
-            onChange={handleChange}
-            className="w-full rounded border p-2"
-          >
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </select>
 
-          <label className="flex items-center gap-2">
-            <input
-              name="active"
-              type="checkbox"
-              checked={form.active}
-              onChange={handleChange}
-            />
-            Active
+          <div>
+            <label className="field-label">Email</label>
+            <input name="email" type="email" value={form.email} onChange={handleChange}
+              placeholder="user@example.com" className="glass-input" required />
+          </div>
+
+          <div>
+            <label className="field-label">Role</label>
+            <select name="role_id" value={form.role_id} onChange={handleChange} className="glass-select">
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>{role.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="field-label">Warehouses</label>
+            <div className="space-y-1.5 mt-1">
+              {warehouses.map((w) => (
+                <label key={w.id} className="flex items-center gap-2.5" style={{ cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    className="glass-checkbox"
+                    checked={(form.warehouses || []).includes(w.id)}
+                    onChange={() => toggleWarehouse(w.id)}
+                  />
+                  <span style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>{w.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2.5" style={{ cursor: "pointer" }}>
+            <input name="active" type="checkbox" className="glass-checkbox" checked={form.active} onChange={handleChange} />
+            <span style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>Active</span>
           </label>
 
-          <div className="text-sm text-gray-500">
+          <p style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
             Last login: {user.last_login || "Never"}
-          </div>
+          </p>
 
           <div className="flex gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded bg-sky-600 px-4 py-2 text-white hover:bg-sky-700 disabled:opacity-60"
-            >
-              {isPending ? "Saving..." : "Save"}
+            <button type="submit" disabled={isPending} className="btn btn-primary" style={{ flex: 1 }}>
+              {isPending ? "Saving…" : "Save Changes"}
             </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded border px-4 py-2 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
+            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
           </div>
         </form>
       </div>

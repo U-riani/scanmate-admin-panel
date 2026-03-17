@@ -1,5 +1,3 @@
-// src/components/sales/CreatePriceListModal.jsx
-
 import { useState } from "react";
 import { useCreatePriceUpload } from "../../queries/priceUploadMutation";
 import { useWarehouses } from "../../queries/warehouseQuery";
@@ -12,7 +10,6 @@ export default function CreatePriceListModal({ open, onClose }) {
   const user = useAuthStore((s) => s.user);
   const createMutation = useCreatePriceUpload();
   const navigate = useNavigate();
-
   const [warehouseId, setWarehouseId] = useState("");
   const [name, setName] = useState("");
 
@@ -40,45 +37,49 @@ export default function CreatePriceListModal({ open, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-      <div className="bg-white p-6 rounded shadow w-[450px] space-y-4">
-        <h2 className="text-xl font-semibold">Create Price List</h2>
-
-        <div>
-          <label className="text-sm text-gray-600">Warehouse</label>
-          <select
-            value={warehouseId}
-            onChange={(e) => setWarehouseId(e.target.value)}
-            className="w-full border rounded px-3 py-2"
-          >
-            <option value="">Select warehouse</option>
-            {allowedWarehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+    <div className="glass-modal-backdrop">
+      <div className="glass-modal" style={{ width: 440 }}>
+        <div className="glass-modal-header">
+          <h2 className="glass-modal-title">New Price List</h2>
+          <button className="glass-modal-close" onClick={onClose}>✕</button>
         </div>
 
-        <input
-          placeholder="Price list name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="border rounded px-3 py-2 w-full"
-        />
+        <div className="space-y-3">
+          <div>
+            <label className="field-label">Warehouse</label>
+            <select
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              className="glass-select"
+            >
+              <option value="">Select warehouse</option>
+              {allowedWarehouses.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </div>
 
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="border px-3 py-2 rounded">
-            Cancel
-          </button>
+          <div>
+            <label className="field-label">Price List Name</label>
+            <input
+              placeholder="e.g. Spring 2025 Prices"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="glass-input"
+            />
+          </div>
 
-          <button
-            disabled={!warehouseId}
-            onClick={handleCreate}
-            className="bg-sky-600 text-white px-4 py-2 rounded"
-          >
-            Create
-          </button>
+          <div className="flex gap-2 pt-2">
+            <button
+              disabled={!warehouseId || createMutation.isPending}
+              onClick={handleCreate}
+              className="btn btn-primary"
+              style={{ flex: 1 }}
+            >
+              {createMutation.isPending ? "Creating…" : "Create & Open"}
+            </button>
+            <button onClick={onClose} className="btn btn-secondary">Cancel</button>
+          </div>
         </div>
       </div>
     </div>

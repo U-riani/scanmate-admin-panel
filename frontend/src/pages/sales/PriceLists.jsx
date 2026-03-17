@@ -1,176 +1,183 @@
-// src/pages/sales/PriceLists.jsx
-
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PATHS } from "../../app/paths";
 import { usePriceUploads } from "../../queries/priceUploadsQuery";
-import {
-  useArchivePriceUpload,
-  useSetActivePriceUpload,
-} from "../../queries/priceUploadMutation";
+import { useArchivePriceUpload, useSetActivePriceUpload } from "../../queries/priceUploadMutation";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { useAuthStore } from "../../store/authStore";
-
-import  CreatePriceListModal  from "../../components/sales/CreatePriceListModal";
+import CreatePriceListModal from "../../components/sales/CreatePriceListModal";
 import PriceLookupBox from "../../components/sales/PriceLookupBox";
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="flex justify-between items-center">
+        <div className="skeleton h-8 w-48 rounded-lg" />
+        <div className="skeleton h-9 w-40 rounded-lg" />
+      </div>
+      <div className="glass-card p-5">
+        <div className="skeleton h-10 w-full rounded-lg" />
+      </div>
+      <div className="glass-card">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="flex gap-4 px-4 py-3.5" style={{ borderBottom: "1px solid var(--glass-border)" }}>
+            {[40, 100, 120, 90, 50, 50, 50, 50, 70, 80].map((w, j) => (
+              <div key={j} className="skeleton h-4 rounded" style={{ width: w }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function PriceLists() {
   const navigate = useNavigate();
   const { data: uploads = [], isLoading } = usePriceUploads();
   const { data: warehouses = [] } = useWarehouses();
   const user = useAuthStore((s) => s.user);
-
   const setActiveMutation = useSetActivePriceUpload();
   const archiveMutation = useArchivePriceUpload();
-
   const [createOpen, setCreateOpen] = useState(false);
   const [warehouseFilter, setWarehouseFilter] = useState("");
 
   const allowedWarehouseIds = user?.warehouses || [];
-
-  const visibleWarehouses = warehouses.filter((w) =>
-    allowedWarehouseIds.includes(w.id),
-  );
+  const visibleWarehouses = warehouses.filter((w) => allowedWarehouseIds.includes(w.id));
 
   const filteredUploads = useMemo(() => {
     return uploads.filter((u) => {
-      const withinScope = allowedWarehouseIds.includes(u.warehouse_id);
-      if (!withinScope) return false;
-
+      if (!allowedWarehouseIds.includes(u.warehouse_id)) return false;
       if (!warehouseFilter) return true;
-
       return u.warehouse_id === Number(warehouseFilter);
     });
   }, [uploads, allowedWarehouseIds, warehouseFilter]);
 
   function getWarehouseName(id) {
-    const warehouse = warehouses.find((w) => w.id === id);
-    return warehouse ? warehouse.name : "-";
+    return warehouses.find((w) => w.id === id)?.name ?? "—";
+  }
+  function formatDate(str) {
+    if (!str) return "—";
+    return new Date(str).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" });
   }
 
-  if (isLoading) {
-    return <div>Loading price uploads...</div>;
-  }
+  if (isLoading) return <LoadingSkeleton />;
 
   return (
-    <div className="space-y-6">
-      <CreatePriceListModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-      />
+    <div className="space-y-5">
+      <CreatePriceListModal open={createOpen} onClose={() => setCreateOpen(false)} />
 
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold">Sales & Price Lists</h1>
-
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="bg-sky-600 text-white px-4 py-2 rounded"
-        >
-          + Create Price List
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Sales & Price Lists</h1>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.8125rem", marginTop: "2px" }}>
+            {filteredUploads.length} upload{filteredUploads.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New Price List
         </button>
       </div>
 
       <PriceLookupBox />
 
-      <div className="bg-white rounded shadow p-4 space-y-3">
-        <div className="flex gap-3 items-center">
-          <label className="text-sm text-gray-600">Warehouse</label>
-          <select
-            value={warehouseFilter}
-            onChange={(e) => setWarehouseFilter(e.target.value)}
-            className="border rounded px-3 py-2"
-          >
-            <option value="">All allowed warehouses</option>
-            {visibleWarehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Filters */}
+      <div className="glass-card p-4 flex items-center gap-3">
+        <label className="field-label mb-0" style={{ whiteSpace: "nowrap" }}>Warehouse</label>
+        <select
+          value={warehouseFilter}
+          onChange={(e) => setWarehouseFilter(e.target.value)}
+          className="glass-select"
+          style={{ maxWidth: 220 }}
+        >
+          <option value="">All allowed warehouses</option>
+          {visibleWarehouses.map((w) => (
+            <option key={w.id} value={w.id}>{w.name}</option>
+          ))}
+        </select>
+      </div>
 
-        <div className="overflow-hidden rounded border">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100">
+      {/* Table */}
+      <div className="glass-card glass-table-wrapper">
+        <table className="glass-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Warehouse</th>
+              <th>File Name</th>
+              <th>Uploaded</th>
+              <th>Rows</th>
+              <th>Valid</th>
+              <th>Errors</th>
+              <th>Dupes</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUploads.length === 0 ? (
               <tr>
-                <th className="p-3 text-left">ID</th>
-                <th className="p-3 text-left">Warehouse</th>
-                <th className="p-3 text-left">File</th>
-                <th className="p-3 text-left">Uploaded At</th>
-                <th className="p-3 text-left">Rows</th>
-                <th className="p-3 text-left">Valid</th>
-                <th className="p-3 text-left">Errors</th>
-                <th className="p-3 text-left">Duplicates</th>
-                <th className="p-3 text-left">Status</th>
-                <th className="p-3 text-left">Actions</th>
+                <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: "2.5rem" }}>
+                  No price uploads found
+                </td>
               </tr>
-            </thead>
-
-            <tbody>
-              {filteredUploads.map((upload) => (
-                <tr key={upload.id} className="border-t">
-                  <td className="p-3">{upload.id}</td>
-                  <td className="p-3">
-                    {getWarehouseName(upload.warehouse_id)}
+            ) : (
+              filteredUploads.map((upload) => (
+                <tr key={upload.id}>
+                  <td className="cell-mono">{upload.id}</td>
+                  <td className="cell-muted">{getWarehouseName(upload.warehouse_id)}</td>
+                  <td style={{ fontWeight: 500, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {upload.file_name}
                   </td>
-                  <td className="p-3">{upload.file_name}</td>
-                  <td className="p-3">{upload.uploaded_at}</td>
-                  <td className="p-3">{upload.rows_count}</td>
-                  <td className="p-3">{upload.valid_rows_count}</td>
-                  <td className="p-3">{upload.error_rows_count}</td>
-                  <td className="p-3">{upload.duplicate_count}</td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        upload.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
+                  <td className="cell-mono">{formatDate(upload.uploaded_at)}</td>
+                  <td className="cell-mono">{upload.rows_count}</td>
+                  <td>
+                    <span style={{ color: "#34d399", fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>
+                      {upload.valid_rows_count}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ color: upload.error_rows_count > 0 ? "#f87171" : "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>
+                      {upload.error_rows_count}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ color: upload.duplicate_count > 0 ? "#fbbf24" : "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>
+                      {upload.duplicate_count}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${upload.status === "active" ? "badge-active" : "badge-archived"}`}>
                       {upload.status}
                     </span>
                   </td>
-                  <td className="p-3 space-x-2">
-                    <button
-                      onClick={() =>
-                        navigate(PATHS.SALES_PRICE_LIST_DETAIL(upload.id))
-                      }
-                      className="px-2 py-1 text-xs bg-sky-200 rounded"
-                    >
-                      View
-                    </button>
-
-                    {upload.status !== "active" && (
+                  <td>
+                    <div className="flex gap-1.5">
                       <button
-                        onClick={() => setActiveMutation.mutate(upload.id)}
-                        className="px-2 py-1 text-xs bg-green-600 text-white rounded"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => navigate(PATHS.SALES_PRICE_LIST_DETAIL(upload.id))}
                       >
-                        Set Active
+                        View
                       </button>
-                    )}
-
-                    {upload.status === "active" && (
-                      <button
-                        onClick={() => archiveMutation.mutate(upload.id)}
-                        className="px-2 py-1 text-xs bg-gray-700 text-white rounded"
-                      >
-                        Archive
-                      </button>
-                    )}
+                      {upload.status !== "active" && (
+                        <button className="btn btn-success btn-sm" onClick={() => setActiveMutation.mutate(upload.id)}>
+                          Activate
+                        </button>
+                      )}
+                      {upload.status === "active" && (
+                        <button className="btn btn-warning btn-sm" onClick={() => archiveMutation.mutate(upload.id)}>
+                          Archive
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
-              ))}
-
-              {filteredUploads.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="p-4 text-center text-gray-500">
-                    No uploads found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

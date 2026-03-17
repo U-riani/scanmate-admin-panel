@@ -1,9 +1,7 @@
-import React from 'react'
-
-const Report = () => {
+export default function Report() {
   return (
-    <div>Report</div>
-  )
+    <div className="glass-card p-8 text-center" style={{ color: "var(--text-secondary)" }}>
+      Reports — coming soon
+    </div>
+  );
 }
-
-export default Report

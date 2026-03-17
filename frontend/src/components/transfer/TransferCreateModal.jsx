@@ -1,5 +1,3 @@
-// src/components/transfer/CreateTransferModal.jsx
-
 import { useState } from "react";
 import { useCreateTransfer } from "../../queries/transferCreateMutation";
 import { useWarehouses } from "../../queries/warehouseQuery";
@@ -7,13 +5,9 @@ import { usePocketUsers } from "../../queries/pocketUsersQuery";
 import { useWarehouseStore } from "../../store/warehouseStore";
 
 export default function CreateTransferModal({ open, onClose }) {
-
   const { data: warehouses = [] } = useWarehouses();
   const { data: users = [] } = usePocketUsers();
-
-  const currentWarehouseId =
-    useWarehouseStore((s) => s.currentWarehouseId);
-
+  const currentWarehouseId = useWarehouseStore((s) => s.currentWarehouseId);
   const createMutation = useCreateTransfer();
 
   const [form, setForm] = useState({
@@ -23,245 +17,147 @@ export default function CreateTransferModal({ open, onClose }) {
     to_warehouse_id: "",
     type: "barcode",
     sender_user_id: "",
-    receiver_user_id: ""
+    receiver_user_id: "",
   });
 
   if (!open) return null;
 
   function updateField(field, value) {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value
-    }));
+    setForm((prev) => ({ ...prev, [field]: value }));
   }
 
   function handleSubmit(e) {
     e.preventDefault();
-
     createMutation.mutate(form, {
       onSuccess: () => {
-
         setForm({
-          name: "",
-          number: "",
+          name: "", number: "",
           from_warehouse_id: currentWarehouseId,
-          to_warehouse_id: "",
-          type: "barcode",
-          sender_user_id: "",
-          receiver_user_id: ""
+          to_warehouse_id: "", type: "barcode",
+          sender_user_id: "", receiver_user_id: "",
         });
-
         onClose();
-      }
+      },
     });
   }
 
-  const otherWarehouses =
-    warehouses.filter(w => w.id !== currentWarehouseId);
+  const otherWarehouses = warehouses.filter((w) => w.id !== currentWarehouseId);
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-
-      <div className="bg-white rounded shadow w-[500px] p-6 space-y-4">
-
-        <h2 className="text-xl font-semibold">
-          Create Transfer
-        </h2>
+    <div className="glass-modal-backdrop">
+      <div className="glass-modal" style={{ width: 500, maxHeight: "90vh", overflowY: "auto" }}>
+        <div className="glass-modal-header">
+          <h2 className="glass-modal-title">Create Transfer</h2>
+          <button className="glass-modal-close" onClick={onClose}>✕</button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-
-          {/* Name */}
-
           <div>
-            <label className="text-sm text-gray-600">
-              Transfer Name
-            </label>
-
+            <label className="field-label">Transfer Name</label>
             <input
               value={form.name}
-              onChange={(e) =>
-                updateField("name", e.target.value)
-              }
+              onChange={(e) => updateField("name", e.target.value)}
+              placeholder="e.g. March Restock"
+              className="glass-input"
               required
-              className="w-full border rounded px-3 py-2"
             />
           </div>
 
-          {/* Number */}
-
           <div>
-            <label className="text-sm text-gray-600">
-              Transfer Number
-            </label>
-
+            <label className="field-label">Transfer Number</label>
             <input
               value={form.number}
-              onChange={(e) =>
-                updateField("number", e.target.value)
-              }
+              onChange={(e) => updateField("number", e.target.value)}
+              placeholder="e.g. TR-2025-001"
+              className="glass-input font-mono"
               required
-              className="w-full border rounded px-3 py-2"
             />
           </div>
 
-          {/* From warehouse */}
-
           <div>
-            <label className="text-sm text-gray-600">
-              From Warehouse
-            </label>
-
+            <label className="field-label">From Warehouse</label>
             <select
               value={form.from_warehouse_id}
               disabled
-              className="w-full border rounded px-3 py-2"
+              className="glass-select"
+              style={{ opacity: 0.6 }}
             >
               {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
+                <option key={w.id} value={w.id}>{w.name}</option>
               ))}
             </select>
           </div>
 
-          {/* To warehouse */}
-
           <div>
-            <label className="text-sm text-gray-600">
-              To Warehouse
-            </label>
-
+            <label className="field-label">To Warehouse</label>
             <select
               value={form.to_warehouse_id}
-              onChange={(e) =>
-                updateField(
-                  "to_warehouse_id",
-                  Number(e.target.value)
-                )
-              }
+              onChange={(e) => updateField("to_warehouse_id", Number(e.target.value))}
+              className="glass-select"
               required
-              className="w-full border rounded px-3 py-2"
             >
-              <option value="">Select warehouse</option>
-
+              <option value="">Select destination</option>
               {otherWarehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
+                <option key={w.id} value={w.id}>{w.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Transfer Type */}
-
           <div>
-            <label className="text-sm text-gray-600">
-              Transfer Type
-            </label>
-
+            <label className="field-label">Transfer Type</label>
             <select
               value={form.type}
-              onChange={(e) =>
-                updateField("type", e.target.value)
-              }
-              className="w-full border rounded px-3 py-2"
+              onChange={(e) => updateField("type", e.target.value)}
+              className="glass-select"
             >
-              <option value="barcode">
-                Barcode
-              </option>
-
-              <option value="box">
-                Box
-              </option>
-
+              <option value="barcode">Barcode</option>
+              <option value="box">Box</option>
             </select>
           </div>
 
-          {/* Sender */}
-
           <div>
-            <label className="text-sm text-gray-600">
-              Sender User
-            </label>
-
+            <label className="field-label">Sender User</label>
             <select
               value={form.sender_user_id}
-              onChange={(e) =>
-                updateField(
-                  "sender_user_id",
-                  Number(e.target.value)
-                )
-              }
+              onChange={(e) => updateField("sender_user_id", Number(e.target.value))}
+              className="glass-select"
               required
-              className="w-full border rounded px-3 py-2"
             >
-
               <option value="">Select sender</option>
-
               {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.username}
-                </option>
+                <option key={u.id} value={u.id}>{u.username}</option>
               ))}
-
             </select>
           </div>
-
-          {/* Receiver */}
 
           <div>
-            <label className="text-sm text-gray-600">
-              Receiver User
-            </label>
-
+            <label className="field-label">Receiver User</label>
             <select
               value={form.receiver_user_id}
-              onChange={(e) =>
-                updateField(
-                  "receiver_user_id",
-                  Number(e.target.value)
-                )
-              }
+              onChange={(e) => updateField("receiver_user_id", Number(e.target.value))}
+              className="glass-select"
               required
-              className="w-full border rounded px-3 py-2"
             >
-
               <option value="">Select receiver</option>
-
               {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.username}
-                </option>
+                <option key={u.id} value={u.id}>{u.username}</option>
               ))}
-
             </select>
           </div>
 
-          {/* Buttons */}
-
-          <div className="flex justify-end gap-2 pt-2">
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1 border rounded"
-            >
-              Cancel
-            </button>
-
+          <div className="flex gap-2 pt-2">
             <button
               type="submit"
-              className="px-4 py-1 bg-sky-600 text-white rounded"
+              disabled={createMutation.isPending}
+              className="btn btn-primary"
+              style={{ flex: 1 }}
             >
-              Create
+              {createMutation.isPending ? "Creating…" : "Create Transfer"}
             </button>
-
+            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
           </div>
-
         </form>
-
       </div>
-
     </div>
   );
 }
