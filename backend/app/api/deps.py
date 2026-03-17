@@ -17,9 +17,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         sub = payload.get('sub')
         if sub is None:
             raise credentials_exception
-    except JWTError:
+        user_id = int(sub)
+    except (JWTError, ValueError):
         raise credentials_exception
-    user = db.get(WebsiteUser, int(sub))
+    user = db.get(WebsiteUser, user_id)
     if not user or not user.active:
         raise credentials_exception
     return user

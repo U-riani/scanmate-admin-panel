@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "../constants/storageKeys";
-import { getStorageValue } from "../utils/storage";
+import { clearAuthStorage, getStorageValue } from "../utils/storage";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
@@ -30,6 +30,12 @@ async function request(path, options = {}) {
     ...options,
     headers: buildHeaders(options),
   });
+
+  if (response.status === 401) {
+    clearAuthStorage();
+    window.location.href = "/login";
+    throw new Error("Session expired. Please log in again.");
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));

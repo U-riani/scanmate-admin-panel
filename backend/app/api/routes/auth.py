@@ -20,6 +20,8 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail='User is inactive')
 
     role = db.get(WebsiteRole, user.role_id)
+    if not role:
+        raise HTTPException(status_code=403, detail='User role not found')
     user.last_login = datetime.now(timezone.utc)
     db.add(user)
     db.commit()
