@@ -21,3 +21,14 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = 'bearer'
     user: LoginUser
+
+class PocketLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class PocketLoginResponse(BaseModel):
+    access_token: str
+    user_id: int
+    username: str
+    modules: dict[str, bool]

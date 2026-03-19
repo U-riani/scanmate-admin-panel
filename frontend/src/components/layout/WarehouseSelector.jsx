@@ -81,7 +81,8 @@ export default function WarehouseSelector() {
         <select
           value={currentWarehouseId ?? ""}
           onChange={handleChange}
-          aria-label="Select warehouse"
+          aria-label="Select warehouse "
+          className="bg-slate-700"
           style={{
             position: "absolute",
             inset: 0,
