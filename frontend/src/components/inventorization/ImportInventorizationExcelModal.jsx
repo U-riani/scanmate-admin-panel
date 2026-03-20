@@ -14,10 +14,17 @@ export default function ImportInventorizationExcelModal({ open, onClose, documen
     if (!file) return;
     const parsed = await parseInventorizationExcel(file);
     const mapped = parsed.map((row) => ({
+      id: String(row["Id"]),
       barcode: String(row["Barcode"]),
-      article_code: row["Article"],
-      product_name: row["Product"],
-      expected_qty: Number(row["Expected Qty"]),
+      initial_qty: Number(row["Initial_Quantity"]),
+      scanned_qty: Number(row["Scanned_Quantity"]),
+      recounted_qty: Number(row["Recounted"]),
+      product_name: String(row["Name"]),
+      color: String(row["Color"]),
+      size: String(row["Size"]),
+      price: Number(row["Price"]),
+      article_code: String(row["ArticCode"]),
+      box_id: String(row["Box_Id"]),
     }));
     setRows(mapped);
     setSummary({ rows: mapped.length });

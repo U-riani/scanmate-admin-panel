@@ -1,129 +1,464 @@
-# backend/app/db/seed.py
-
 from datetime import datetime, timezone
 from sqlalchemy import select, text
 
 from app.core.security import hash_password
 from app.db.session import SessionLocal
-from app.models.models import Inventorization, InventorizationLine, PocketRole, PocketUser, PriceRow, PriceUpload, Transfer, TransferLine, Warehouse, WarehouseProduct, WebsiteRole, WebsiteUser
-from app.models.enums import DocumentType, InventorizationStatus, PriceType, PriceUploadStatus, SignatureStatus, TransferStatus
+from app.models.models import (
+    Inventorization,
+    InventorizationLine,
+    Receive,
+    ReceiveLine,
+    PocketRole,
+    PocketUser,
+    PriceRow,
+    PriceUpload,
+    Transfer,
+    TransferLine,
+    Warehouse,
+    WarehouseProduct,
+    WebsiteRole,
+    WebsiteUser,
+)
+from app.models.enums import (
+    DocumentType,
+    InventorizationStatus,
+    ReceiveStatus,
+    PriceType,
+    PriceUploadStatus,
+    SignatureStatus,
+    TransferStatus,
+)
 
-# Tables that have rows inserted with explicit IDs in seed data.
-# After seeding we must advance PostgreSQL sequences to avoid PK conflicts on first real INSERT.
 _SEEDED_TABLES = [
-    'warehouses',
-    'website_roles',
-    'pocket_roles',
-    'website_users',
-    'pocket_users',
-    'warehouse_products',
-    'transfers',
-    'transfer_lines',
-    'inventorizations',
-    'inventorization_lines',
-    'price_uploads',
-    'price_rows',
+    "warehouses",
+    "website_roles",
+    "pocket_roles",
+    "website_users",
+    "pocket_users",
+    "warehouse_products",
+    "transfers",
+    "transfer_lines",
+    "inventorizations",
+    "inventorization_lines",
+    "receives",
+    "receive_lines",
+    "price_uploads",
+    "price_rows",
 ]
 
 
-def _reset_sequences(db) -> None:
-    """Advance each table's PK sequence to MAX(id) so new INSERTs don't collide with seed rows."""
+def _reset_sequences(db):
     for table in _SEEDED_TABLES:
-        db.execute(text(
-            f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), "
-            f"COALESCE((SELECT MAX(id) FROM {table}), 0))"
-        ))
+        db.execute(
+            text(
+                f"""
+                SELECT setval(
+                    pg_get_serial_sequence('{table}', 'id'),
+                    COALESCE((SELECT MAX(id) FROM {table}), 0)
+                )
+                """
+            )
+        )
     db.commit()
 
 
 def seed_database():
     db = SessionLocal()
+
     try:
+        # do not reseed
         if db.scalar(select(WebsiteUser.id).limit(1)):
             return
 
+        # Warehouses
         warehouses = [
-            Warehouse(id=1, name='Tbilisi Central', code='TBL', active=True),
-            Warehouse(id=2, name='Batumi Store', code='BAT', active=True),
-            Warehouse(id=3, name='Kutaisi Store', code='KUT', active=True),
+            Warehouse(id=1, name="Tbilisi Central", code="TBL", active=True),
+            Warehouse(id=2, name="Batumi Store", code="BAT", active=True),
+            Warehouse(id=3, name="Kutaisi Store", code="KUT", active=True),
         ]
         db.add_all(warehouses)
         db.commit()
 
+        # Website roles
         website_roles = [
-            WebsiteRole(id=1, name='super_admin', description='Full system access', modules={
-                'dashboard': True, 'users': True, 'transfer': True, 'sales': True, 'website_users': True,
-                'website_roles': True, 'pocket_users': True, 'pocket_roles': True, 'warehouses': True,
-                'settings': True, 'reports': True, 'inventorization': True, 'report': True, 'receive': True,
-            }),
-            WebsiteRole(id=2, name='admin', description='Operational admin', modules={
-                'dashboard': True, 'transfer': True, 'sales': True, 'users': True, 'website_users': False,
-                'website_roles': False, 'pocket_users': True, 'pocket_roles': True, 'warehouses': True,
-                'settings': False, 'reports': True, 'inventorization': False,
-            }),
+            WebsiteRole(
+                id=1,
+                name="super_admin",
+                description="Full system access",
+                modules={
+                    "dashboard": True,
+                    "users": True,
+                    "transfer": True,
+                    "sales": True,
+                    "website_users": True,
+                    "website_roles": True,
+                    "pocket_users": True,
+                    "pocket_roles": True,
+                    "warehouses": True,
+                    "settings": True,
+                    "reports": True,
+                    "inventorization": True,
+                    "report": True,
+                    "receive": True,
+                },
+            ),
+            WebsiteRole(
+                id=2,
+                name="admin",
+                description="Operational admin",
+                modules={
+                    "dashboard": True,
+                    "transfer": True,
+                    "sales": True,
+                    "users": True,
+                    "website_users": False,
+                    "website_roles": False,
+                    "pocket_users": True,
+                    "pocket_roles": True,
+                    "warehouses": True,
+                    "settings": False,
+                    "reports": True,
+                    "inventorization": False,
+                },
+            ),
         ]
         db.add_all(website_roles)
         db.commit()
 
+        # Pocket roles
         pocket_roles = [
-            PocketRole(id=1, name='warehouse_operator', description='Standard warehouse operator', modules={'inventorization': True, 'transfer': True, 'receive': False, 'sales': False}),
-            PocketRole(id=2, name='warehouse_supervisor', description='Supervisor with wider permissions', modules={'inventorization': True, 'transfer': True, 'receive': True, 'sales': False}),
-            PocketRole(id=3, name='warehouse_manager', description='Full access', modules={'inventorization': True, 'transfer': True, 'receive': True, 'sales': True}),
+            PocketRole(
+                id=1,
+                name="warehouse_operator",
+                description="Standard warehouse operator",
+                modules={
+                    "inventorization": True,
+                    "transfer": True,
+                    "receive": False,
+                    "sales": False,
+                },
+            ),
+            PocketRole(
+                id=2,
+                name="warehouse_supervisor",
+                description="Supervisor with wider permissions",
+                modules={
+                    "inventorization": True,
+                    "transfer": True,
+                    "receive": True,
+                    "sales": False,
+                },
+            ),
+            PocketRole(
+                id=3,
+                name="warehouse_manager",
+                description="Full access",
+                modules={
+                    "inventorization": True,
+                    "transfer": True,
+                    "receive": True,
+                    "sales": True,
+                },
+            ),
         ]
         db.add_all(pocket_roles)
         db.commit()
 
+        # Website users
         website_users = [
-            WebsiteUser(id=1, username='super', email='super@scanmate.ge', password_hash=hash_password('123456'), role_id=1, warehouses=[1,2], active=True, last_login=datetime(2026,3,11, tzinfo=timezone.utc)),
-            WebsiteUser(id=2, username='admin', email='admin@scanmate.ge', password_hash=hash_password('123456'), role_id=2, warehouses=[1], active=True, last_login=datetime(2026,3,10, tzinfo=timezone.utc)),
+            WebsiteUser(
+                id=1,
+                username="super",
+                email="super@scanmate.ge",
+                password_hash=hash_password("123456"),
+                role_id=1,
+                warehouses=[1, 2],
+                active=True,
+                last_login=datetime(2026, 3, 11, tzinfo=timezone.utc),
+            ),
+            WebsiteUser(
+                id=2,
+                username="admin",
+                email="admin@scanmate.ge",
+                password_hash=hash_password("123456"),
+                role_id=2,
+                warehouses=[1],
+                active=True,
+                last_login=datetime(2026, 3, 10, tzinfo=timezone.utc),
+            ),
         ]
         db.add_all(website_users)
         db.commit()
 
+        # Pocket users
         pocket_users = [
-            PocketUser(id=1, username='giorgi', password_hash=hash_password('123456'), role_id=1, warehouses=[1,2], active=True, last_login=datetime(2026,3,10, tzinfo=timezone.utc)),
-            PocketUser(id=2, username='nika', password_hash=hash_password('123456'), role_id=2, warehouses=[1], active=True, last_login=datetime(2026,3,11, tzinfo=timezone.utc)),
+            PocketUser(
+                id=1,
+                username="giorgi",
+                password_hash=hash_password("123456"),
+                role_id=1,
+                warehouses=[1, 2],
+                active=True,
+                last_login=datetime(2026, 3, 10, tzinfo=timezone.utc),
+            ),
+            PocketUser(
+                id=2,
+                username="nika",
+                password_hash=hash_password("123456"),
+                role_id=2,
+                warehouses=[1],
+                active=True,
+                last_login=datetime(2026, 3, 11, tzinfo=timezone.utc),
+            ),
         ]
         db.add_all(pocket_users)
         db.commit()
 
+        # Warehouse products
         warehouse_products = [
-            WarehouseProduct(id=1, warehouse_id=1, barcode='460123000001', article_code='ART-001', product_name='Blue Shirt', stock_qty=15),
-            WarehouseProduct(id=2, warehouse_id=1, barcode='460123000002', article_code='ART-002', product_name='Black Jeans', stock_qty=9),
-            WarehouseProduct(id=3, warehouse_id=2, barcode='460123000003', article_code='ART-003', product_name='Red Hoodie', stock_qty=7),
+            WarehouseProduct(
+                id=1,
+                warehouse_id=1,
+                barcode="460123000001",
+                article_code="ART-001",
+                product_name="Blue Shirt",
+                price=49.99,
+                stock_qty=15,
+            ),
+            WarehouseProduct(
+                id=2,
+                warehouse_id=1,
+                barcode="460123000002",
+                article_code="ART-002",
+                product_name="Black Jeans",
+                price=79.99,
+                stock_qty=9,
+            ),
+            WarehouseProduct(
+                id=3,
+                warehouse_id=2,
+                barcode="460123000003",
+                article_code="ART-003",
+                product_name="Red Hoodie",
+                price=59.99,
+                stock_qty=7,
+            ),
         ]
         db.add_all(warehouse_products)
         db.commit()
 
-        transfer = Transfer(id=1, name='TBL to BAT', number='TR-0001', from_warehouse_id=1, to_warehouse_id=2, type='internal', status=TransferStatus.draft, sender_user_id=1, receiver_user_id=2, signature_status=SignatureStatus.pending, created_by=1, total_lines=2, sent_lines=1, received_lines=0, difference_lines=0, is_locked=False)
+        # Transfer
+        transfer = Transfer(
+            id=1,
+            name="TBL to BAT",
+            number="TR-0001",
+            from_warehouse_id=1,
+            to_warehouse_id=2,
+            type="internal",
+            status=TransferStatus.draft,
+            sender_user_id=1,
+            receiver_user_id=2,
+            signature_status=SignatureStatus.pending,
+            created_by=1,
+            total_lines=2,
+            sent_lines=1,
+            received_lines=0,
+            difference_lines=0,
+            is_locked=False,
+        )
         db.add(transfer)
         db.commit()
-        db.add_all([
-            TransferLine(id=1, document_id=1, product_id=1, barcode='460123000001', article_code='ART-001', product_name='Blue Shirt', expected_qty=5, sent_qty=5, received_qty=0, difference_qty=-5),
-            TransferLine(id=2, document_id=1, product_id=2, barcode='460123000002', article_code='ART-002', product_name='Black Jeans', expected_qty=3, sent_qty=0, received_qty=0, difference_qty=0),
-        ])
+
+        transfer_lines = [
+            TransferLine(
+                id=1,
+                document_id=1,
+                product_id=1,
+                barcode="460123000001",
+                article_code="ART-001",
+                product_name="Blue Shirt",
+                color="Blue",
+                size="xl",
+                price=15.95,
+                expected_qty=5,
+                sent_qty=5,
+                received_qty=0,
+                difference_qty=-5,
+                recount_requested=False
+            ),
+            TransferLine(
+                id=2,
+                document_id=1,
+                product_id=2,
+                barcode="460123000002",
+                article_code="ART-002",
+                product_name="Black Jeans",
+                color="Black",
+                size="L",
+                price=67.95,
+                expected_qty=3,
+                sent_qty=0,
+                received_qty=0,
+                difference_qty=0,
+            ),
+        ]
+        db.add_all(transfer_lines)
         db.commit()
 
-        inv = Inventorization(id=1, name='Central Count', warehouse_id=1, type=DocumentType.barcode, doc_type=DocumentType.barcode, status=InventorizationStatus.draft, employees=[1,2])
+        # Inventorization
+        inv = Inventorization(
+            id=1,
+            name="Central Count",
+            warehouse_id=1,
+            type=DocumentType.barcode,
+            doc_type=DocumentType.barcode,
+            status=InventorizationStatus.draft,
+            description="Some description for Central Count inv",
+            employees=[1, 2],
+        )
         db.add(inv)
         db.commit()
-        db.add_all([
-            InventorizationLine(id=1, document_id=1, barcode='460123000001', article_code='ART-001', product_name='Blue Shirt', expected_qty=15, counted_qty=14, recount_requested=True, employee_id=1),
-            InventorizationLine(id=2, document_id=1, barcode='460123000002', article_code='ART-002', product_name='Black Jeans', expected_qty=9, counted_qty=9, recount_requested=False, employee_id=2),
-        ])
+
+        inventorization_lines = [
+            InventorizationLine(
+                id=1,
+                document_id=1,
+                barcode="460123000001",
+                article_code="ART-001",
+                product_name="Blue Shirt",
+                color="Blue",
+                size="xl",
+                price=15.95,
+                expected_qty=15,
+                counted_qty=14,
+                employee_id=1,
+                recount_requested=False
+            ),
+            InventorizationLine(
+                id=2,
+                document_id=1,
+                barcode="460123000002",
+                article_code="ART-002",
+                product_name="Black Jeans",
+                color="Black",
+                size="L",
+                price=67.95,
+                expected_qty=9,
+                counted_qty=9,
+                employee_id=2,
+            ),
+        ]
+        db.add_all(inventorization_lines)
         db.commit()
 
-        upload = PriceUpload(id=1, warehouse_id=1, file_name='price_list.xlsx', uploaded_by=1, rows_count=2, valid_rows_count=2, error_rows_count=0, duplicate_count=0, status=PriceUploadStatus.active, notes='Initial seed upload')
+        # Receive document
+        receive = Receive(
+            id=1,
+            name="BAT Receive",
+            number="RCV-0001",
+            warehouse_id=2,
+            type="internal",
+            status=ReceiveStatus.draft,
+            receiver_user_id=2,
+            created_by=1,
+            total_lines=2,
+            received_lines=1,
+            difference_lines=0,
+            is_locked=False,
+        )
+
+        db.add(receive)
+        db.commit()
+
+        receive_lines = [
+            ReceiveLine(
+                id=1,
+                document_id=1,
+                product_id=1,
+                barcode="460123000001",
+                article_code="ART-001",
+                product_name="Blue Shirt",
+                color="Blue",
+                size="XL",
+                price=15.95,
+                expected_qty=5,
+                received_qty=5,
+                difference_qty=0,
+                recount_requested=False,
+            ),
+            ReceiveLine(
+                id=2,
+                document_id=1,
+                product_id=2,
+                barcode="460123000002",
+                article_code="ART-002",
+                product_name="Black Jeans",
+                color="Black",
+                size="L",
+                price=67.95,
+                expected_qty=3,
+                received_qty=2,
+                difference_qty=-1,
+                recount_requested=True,
+            ),
+        ]
+
+        db.add_all(receive_lines)
+        db.commit()
+
+        # Price upload
+        upload = PriceUpload(
+            id=1,
+            warehouse_id=1,
+            file_name="price_list.xlsx",
+            uploaded_by=1,
+            rows_count=2,
+            valid_rows_count=2,
+            error_rows_count=0,
+            duplicate_count=0,
+            status=PriceUploadStatus.active,
+            notes="Initial seed upload",
+        )
         db.add(upload)
         db.commit()
-        db.add_all([
-            PriceRow(id=1, upload_id=1, warehouse_id=1, barcode='460123000001', name='Blue Shirt', category='Shirts', color='Blue', size='M', group_name='Men', article='ART-001', base_price=49.99, adjusted_price=39.99, price_type=PriceType.discounted),
-            PriceRow(id=2, upload_id=1, warehouse_id=1, barcode='460123000002', name='Black Jeans', category='Pants', color='Black', size='32', group_name='Men', article='ART-002', base_price=79.99, adjusted_price=79.99, price_type=PriceType.none),
-        ])
+
+        price_rows = [
+            PriceRow(
+                id=1,
+                upload_id=1,
+                warehouse_id=1,
+                barcode="460123000001",
+                name="Blue Shirt",
+                category="Shirts",
+                color="Blue",
+                size="M",
+                group_name="Men",
+                article="ART-001",
+                base_price=49.99,
+                adjusted_price=39.99,
+                price_type=PriceType.discounted,
+            ),
+            PriceRow(
+                id=2,
+                upload_id=1,
+                warehouse_id=1,
+                barcode="460123000002",
+                name="Black Jeans",
+                category="Pants",
+                color="Black",
+                size="32",
+                group_name="Men",
+                article="ART-002",
+                base_price=79.99,
+                adjusted_price=79.99,
+                price_type=PriceType.none,
+            ),
+        ]
+        db.add_all(price_rows)
 
         db.commit()
 
-        # Advance sequences so the first real INSERT doesn't collide with seed IDs
         _reset_sequences(db)
+
     finally:
         db.close()

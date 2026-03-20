@@ -8,6 +8,7 @@ class InventorizationCreate(BaseModel):
     warehouse_id: int
     type: str = 'barcode'
     doc_type: str = 'barcode'
+    description: str | None = None
     employees: list[int] = []
 
 
@@ -19,11 +20,13 @@ class InventorizationRead(ORMModel):
     id: int
     name: str
     warehouse_id: int
+    warehouse_name: str | None = None
     type: str
     doc_type: str
     parent_document_id: int | None = None
     status: str
-    employees: list[int]
+    description: str | None = None
+    employees: list[int] = []
     created_at: datetime
     updated_at: datetime
 
@@ -42,6 +45,10 @@ class InventorizationLineRead(ORMModel):
     barcode: str
     article_code: str | None = None
     product_name: str | None = None
+    color: str | None = None
+    size: str | None = None
+    price: float | None = None
+    box_id: str | None = None
     expected_qty: int
     counted_qty: int | None = None
     recount_qty: int | None = None

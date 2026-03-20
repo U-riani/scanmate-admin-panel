@@ -22,7 +22,7 @@ export const TEMPLATES = {
     filename: "price_rows_template",
   },
   inventorizationLines: {
-    headers: ["Barcode", "Article", "Product", "Expected Qty"],
+    headers: ["Id", "Barcode", "Initial_Quantity", "Scanned_Quantity", "Recounted", "Name",  "Color", "Size", "Price", "ArticCode", "Box_Id"],
     filename: "inventorization_lines_template",
   },
   transferLines: {

@@ -1,13 +1,22 @@
 from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
-from app.models.enums import DocumentType, InventorizationStatus, PriceType, PriceUploadStatus, SignatureStatus, TransferStatus
+from app.models.enums import (
+    DocumentType,
+    InventorizationStatus,
+    PriceType,
+    PriceUploadStatus,
+    SignatureStatus,
+    TransferStatus,
+    ReceiveStatus
+)
 
 
 class Warehouse(Base):
-    __tablename__ = 'warehouses'
+    __tablename__ = "warehouses"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
@@ -15,7 +24,8 @@ class Warehouse(Base):
 
 
 class WebsiteRole(Base):
-    __tablename__ = 'website_roles'
+    __tablename__ = "website_roles"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(String(255))
@@ -23,20 +33,31 @@ class WebsiteRole(Base):
 
 
 class WebsiteUser(Base):
-    __tablename__ = 'website_users'
+    __tablename__ = "website_users"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
     username: Mapped[str] = mapped_column(String(80), nullable=False)
     email: Mapped[str] = mapped_column(String(120), nullable=False, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    role_id: Mapped[int] = mapped_column(ForeignKey('website_roles.id'), nullable=False)
+
+    role_id: Mapped[int] = mapped_column(ForeignKey("website_roles.id"), nullable=False)
+
     warehouses: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
 
 
 class PocketRole(Base):
-    __tablename__ = 'pocket_roles'
+    __tablename__ = "pocket_roles"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(String(255))
@@ -44,129 +65,397 @@ class PocketRole(Base):
 
 
 class PocketUser(Base):
-    __tablename__ = 'pocket_users'
+    __tablename__ = "pocket_users"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
     username: Mapped[str] = mapped_column(String(80), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    role_id: Mapped[int] = mapped_column(ForeignKey('pocket_roles.id'), nullable=False)
+
+    role_id: Mapped[int] = mapped_column(ForeignKey("pocket_roles.id"), nullable=False)
+
     warehouses: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
 
 
 class Transfer(Base):
-    __tablename__ = 'transfers'
+    __tablename__ = "transfers"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     number: Mapped[str | None] = mapped_column(String(80))
-    from_warehouse_id: Mapped[int] = mapped_column(ForeignKey('warehouses.id'), nullable=False)
-    to_warehouse_id: Mapped[int] = mapped_column(ForeignKey('warehouses.id'), nullable=False)
+
+    from_warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    to_warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+
     type: Mapped[str | None] = mapped_column(String(40))
-    status: Mapped[TransferStatus] = mapped_column(Enum(TransferStatus), default=TransferStatus.draft, nullable=False)
-    sender_user_id: Mapped[int | None] = mapped_column(ForeignKey('pocket_users.id'))
-    receiver_user_id: Mapped[int | None] = mapped_column(ForeignKey('pocket_users.id'))
+
+    status: Mapped[TransferStatus] = mapped_column(
+        Enum(TransferStatus),
+        default=TransferStatus.draft,
+        nullable=False,
+    )
+
+    sender_user_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
+    receiver_user_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
+
     sender_finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     receiver_finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    signature_status: Mapped[SignatureStatus] = mapped_column(Enum(SignatureStatus), default=SignatureStatus.pending, nullable=False)
-    signed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey('website_users.id'))
+
+    signature_status: Mapped[SignatureStatus] = mapped_column(
+        Enum(SignatureStatus),
+        default=SignatureStatus.pending,
+        nullable=False,
+    )
+
+    signed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("website_users.id"))
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by: Mapped[int | None] = mapped_column(ForeignKey('website_users.id'))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("website_users.id"))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
     total_lines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     sent_lines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     received_lines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     difference_lines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class TransferLine(Base):
-    __tablename__ = 'transfer_lines'
+    __tablename__ = "transfer_lines"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    document_id: Mapped[int] = mapped_column(ForeignKey('transfers.id'), nullable=False, index=True)
+
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("transfers.id"),
+        nullable=False,
+        index=True,
+    )
+
     product_id: Mapped[int | None] = mapped_column(Integer)
+
     barcode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     article_code: Mapped[str | None] = mapped_column(String(80))
     product_name: Mapped[str | None] = mapped_column(String(255))
+
+    color: Mapped[str | None] = mapped_column(String(255))
+    size: Mapped[str | None] = mapped_column(String(255))
+
+    price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+
     expected_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     sent_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     received_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    recounted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     difference_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    sender_user_id: Mapped[int | None] = mapped_column(ForeignKey('pocket_users.id'))
-    receiver_user_id: Mapped[int | None] = mapped_column(ForeignKey('pocket_users.id'))
+
+    sender_user_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
+    receiver_user_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
+
     sender_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     receiver_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    recount_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    box_id: Mapped[str | None] = mapped_column(String(80), index=True)
 
 
 class Inventorization(Base):
-    __tablename__ = 'inventorizations'
+    __tablename__ = "inventorizations"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    warehouse_id: Mapped[int] = mapped_column(ForeignKey('warehouses.id'), nullable=False)
-    type: Mapped[DocumentType] = mapped_column(Enum(DocumentType), default=DocumentType.barcode, nullable=False)
+
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+
+    warehouse: Mapped["Warehouse"] = relationship("Warehouse")
+
+    type: Mapped[DocumentType] = mapped_column(
+        Enum(DocumentType),
+        default=DocumentType.barcode,
+        nullable=False,
+    )
     doc_type: Mapped[DocumentType] = mapped_column(Enum(DocumentType), default=DocumentType.barcode, nullable=False)
-    parent_document_id: Mapped[int | None] = mapped_column(ForeignKey('inventorizations.id'))
-    status: Mapped[InventorizationStatus] = mapped_column(Enum(InventorizationStatus), default=InventorizationStatus.draft, nullable=False)
+    parent_document_id: Mapped[int | None] = mapped_column(ForeignKey("inventorizations.id"))
+
+    status: Mapped[InventorizationStatus] = mapped_column(
+        Enum(InventorizationStatus),
+        default=InventorizationStatus.draft,
+        nullable=False,
+    )
+
+    description: Mapped[str | None] = mapped_column(String(120), nullable=False
+                                                    )
     employees: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
 
 
 class InventorizationLine(Base):
-    __tablename__ = 'inventorization_lines'
+    __tablename__ = "inventorization_lines"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    document_id: Mapped[int] = mapped_column(ForeignKey('inventorizations.id'), nullable=False, index=True)
+
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("inventorizations.id"),
+        nullable=False,
+        index=True,
+    )
+
     barcode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     article_code: Mapped[str | None] = mapped_column(String(80))
     product_name: Mapped[str | None] = mapped_column(String(255))
+
+    color: Mapped[str | None] = mapped_column(String(255))
+    size: Mapped[str | None] = mapped_column(String(255))
+
+    price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+
     expected_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     counted_qty: Mapped[int | None] = mapped_column(Integer)
     recount_qty: Mapped[int | None] = mapped_column(Integer)
     recount_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    employee_id: Mapped[int | None] = mapped_column(ForeignKey('pocket_users.id'))
+    employee_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
+
+    box_id: Mapped[str | None] = mapped_column(String(80), index=True)
 
 
 class WarehouseProduct(Base):
-    __tablename__ = 'warehouse_products'
+    __tablename__ = "warehouse_products"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    warehouse_id: Mapped[int] = mapped_column(ForeignKey('warehouses.id'), nullable=False, index=True)
+
+    warehouse_id: Mapped[int] = mapped_column(
+        ForeignKey("warehouses.id"),
+        nullable=False,
+        index=True,
+    )
+
     barcode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     article_code: Mapped[str | None] = mapped_column(String(80))
     product_name: Mapped[str | None] = mapped_column(String(255))
+
+    color: Mapped[str | None] = mapped_column(String(255))
+    size: Mapped[str | None] = mapped_column(String(255))
+
+    price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+
     stock_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
 class PriceUpload(Base):
-    __tablename__ = 'price_uploads'
+    __tablename__ = "price_uploads"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    warehouse_id: Mapped[int] = mapped_column(ForeignKey('warehouses.id'), nullable=False, index=True)
+
+    warehouse_id: Mapped[int] = mapped_column(
+        ForeignKey("warehouses.id"),
+        nullable=False,
+        index=True,
+    )
+
     file_name: Mapped[str | None] = mapped_column(String(255))
-    uploaded_by: Mapped[int | None] = mapped_column(ForeignKey('website_users.id'))
-    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("website_users.id"))
+
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
     rows_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     valid_rows_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_rows_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     duplicate_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    status: Mapped[PriceUploadStatus] = mapped_column(Enum(PriceUploadStatus), default=PriceUploadStatus.active, nullable=False)
+
+    status: Mapped[PriceUploadStatus] = mapped_column(
+        Enum(PriceUploadStatus),
+        default=PriceUploadStatus.active,
+        nullable=False,
+    )
+
     notes: Mapped[str | None] = mapped_column(Text)
 
 
 class PriceRow(Base):
-    __tablename__ = 'price_rows'
+    __tablename__ = "price_rows"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    upload_id: Mapped[int] = mapped_column(ForeignKey('price_uploads.id'), nullable=False, index=True)
-    warehouse_id: Mapped[int] = mapped_column(ForeignKey('warehouses.id'), nullable=False, index=True)
+
+    upload_id: Mapped[int] = mapped_column(
+        ForeignKey("price_uploads.id"),
+        nullable=False,
+        index=True,
+    )
+
+    warehouse_id: Mapped[int] = mapped_column(
+        ForeignKey("warehouses.id"),
+        nullable=False,
+        index=True,
+    )
+
     barcode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+
     name: Mapped[str | None] = mapped_column(String(255))
+
     category: Mapped[str | None] = mapped_column(String(120))
     color: Mapped[str | None] = mapped_column(String(120))
     size: Mapped[str | None] = mapped_column(String(120))
-    group_name: Mapped[str | None] = mapped_column('group_name', String(120))
+
+    group_name: Mapped[str | None] = mapped_column(String(120))
+
     article: Mapped[str | None] = mapped_column(String(120))
+
     base_price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
     adjusted_price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
-    price_type: Mapped[PriceType] = mapped_column(Enum(PriceType), default=PriceType.none, nullable=False)
+
+    price_type: Mapped[PriceType] = mapped_column(
+        Enum(PriceType),
+        default=PriceType.none,
+        nullable=False,
+    )
+
+
+class Receive(Base):
+    __tablename__ = "receives"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    number: Mapped[str | None] = mapped_column(String(80))
+
+    warehouse_id: Mapped[int] = mapped_column(
+        ForeignKey("warehouses.id"),
+        nullable=False,
+        index=True,
+    )
+
+    type: Mapped[str | None] = mapped_column(String(40))
+
+    status: Mapped[ReceiveStatus] = mapped_column(
+        Enum(ReceiveStatus),
+        default=ReceiveStatus.draft,
+        nullable=False,
+    )
+
+    receiver_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pocket_users.id")
+    )
+
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("website_users.id")
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    total_lines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    received_lines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    difference_lines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+class ReceiveLine(Base):
+    __tablename__ = "receive_lines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("receives.id"),
+        nullable=False,
+        index=True,
+    )
+
+    product_id: Mapped[int | None] = mapped_column(Integer)
+
+    barcode: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    article_code: Mapped[str | None] = mapped_column(String(80))
+    product_name: Mapped[str | None] = mapped_column(String(255))
+
+    color: Mapped[str | None] = mapped_column(String(255))
+    size: Mapped[str | None] = mapped_column(String(255))
+
+    price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+
+    expected_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    received_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    recount_qty: Mapped[int | None] = mapped_column(Integer)
+
+    recount_requested: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    difference_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    receiver_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pocket_users.id")
+    )
+
+    received_scanned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    box_id: Mapped[str | None] = mapped_column(String(80), index=True)

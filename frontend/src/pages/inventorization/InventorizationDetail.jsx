@@ -28,6 +28,7 @@ export default function InventorizationDetail() {
   const doc = docs.find((d) => String(d.id) === id);
   const { data: lines = [] } = useInventorizationLines(doc?.id);
   const statusMutation = useInventorizationStatusMutation();
+  console.log(lines)
 
   if (!doc)
     return (

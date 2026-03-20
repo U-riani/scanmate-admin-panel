@@ -47,6 +47,7 @@ export default function CreateInventorizationModal({ open, onClose }) {
       alert("Please select a warehouse first.");
       return;
     }
+    console.log(form)
     mutate(
       {
         name: form.name,

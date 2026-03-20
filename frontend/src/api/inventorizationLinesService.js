@@ -14,5 +14,6 @@ export async function markLinesForRecount(lineIds) {
 }
 
 export function importInventorizationLines(documentId, rows) {
+  console.log(documentId, rows);
   return apiClient.post(`/inventorization/${documentId}/import-lines`, { rows });
 }

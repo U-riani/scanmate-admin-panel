@@ -20,6 +20,16 @@ class InventorizationStatus(str, Enum):
     completed = 'completed'
     recounted = 'recounted'
 
+class ReceiveStatus(str, Enum):
+    draft = 'draft'
+    in_progress = 'in_progress'
+    completed = 'completed'
+    recount_requested = 'recount_requested'
+    recount_in_progress = 'recount_in_progress'
+    recount_completed = 'recount_completed'
+    confirmed = 'confirmed'
+
+
 
 class DocumentType(str, Enum):
     barcode = 'barcode'
