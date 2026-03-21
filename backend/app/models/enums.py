@@ -33,6 +33,7 @@ class ReceiveStatus(str, Enum):
 
 class DocumentType(str, Enum):
     barcode = 'barcode'
+    loots = 'loots'
     manual = 'manual'
     recount = 'recount'
 

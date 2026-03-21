@@ -1,16 +1,17 @@
 from datetime import datetime
 from pydantic import BaseModel
 from app.schemas.common import ORMModel
+from app.models.enums import DocumentType
+
 
 
 class InventorizationCreate(BaseModel):
     name: str
     warehouse_id: int
-    type: str = 'barcode'
-    doc_type: str = 'barcode'
+    type: DocumentType = DocumentType.barcode
+    doc_type: DocumentType = DocumentType.barcode
     description: str | None = None
     employees: list[int] = []
-
 
 class InventorizationStatusUpdate(BaseModel):
     status: str

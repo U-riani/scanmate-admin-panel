@@ -31,6 +31,7 @@ def list_docs(db: Session = Depends(get_db)):
 
 @router.post("", response_model=InventorizationRead)
 def create_doc(payload: InventorizationCreate, db: Session = Depends(get_db)):
+    print("---", payload)
     obj = Inventorization(
         **payload.model_dump(),
         status=InventorizationStatus.draft,

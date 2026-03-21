@@ -43,6 +43,7 @@ export default function CreateInventorizationModal({ open, onClose }) {
 
   function handleSubmit(e) {
     e.preventDefault();
+    console.log(form)
     if (!currentWarehouseId) {
       alert("Please select a warehouse first.");
       return;
@@ -106,7 +107,7 @@ export default function CreateInventorizationModal({ open, onClose }) {
             <label className="field-label">Type</label>
             <select name="type" className="glass-select" value={form.type} onChange={handleChange}>
               <option value="barcode">Barcode based</option>
-              <option value="box">Box based</option>
+              <option value="loots">Box based</option>
             </select>
           </div>
 
