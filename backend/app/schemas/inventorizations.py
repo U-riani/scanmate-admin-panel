@@ -1,15 +1,15 @@
 from datetime import datetime
 from pydantic import BaseModel
 from app.schemas.common import ORMModel
-from app.models.enums import DocumentType
+from app.models.enums import DocumentModule, ScanType
 
 
 
 class InventorizationCreate(BaseModel):
     name: str
     warehouse_id: int
-    type: DocumentType = DocumentType.barcode
-    doc_type: DocumentType = DocumentType.barcode
+    module: DocumentModule = DocumentModule.inventorization
+    scan_type: ScanType = ScanType.barcode
     description: str | None = None
     employees: list[int] = []
 

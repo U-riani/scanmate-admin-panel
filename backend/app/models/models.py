@@ -4,7 +4,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 from app.models.enums import (
-    DocumentType,
+    DocumentModule,
+    ScanType,
     InventorizationStatus,
     PriceType,
     PriceUploadStatus,
@@ -97,7 +98,17 @@ class Transfer(Base):
     from_warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
     to_warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
 
-    type: Mapped[str | None] = mapped_column(String(40))
+    module: Mapped[DocumentModule] = mapped_column(
+        Enum(DocumentModule),
+        default=DocumentModule.transfer,
+        nullable=False,
+    )
+
+    scan_type: Mapped[ScanType] = mapped_column(
+        Enum(ScanType),
+        default=ScanType.barcode,
+        nullable=False
+    )
 
     status: Mapped[TransferStatus] = mapped_column(
         Enum(TransferStatus),
@@ -116,6 +127,8 @@ class Transfer(Base):
         default=SignatureStatus.pending,
         nullable=False,
     )
+
+    description: Mapped[str | None] = mapped_column(String(255))
 
     signed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("website_users.id"))
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -194,17 +207,28 @@ class Inventorization(Base):
 
     name: Mapped[str] = mapped_column(String(120), nullable=False)
 
-    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"), nullable=False)
+    warehouse_id: Mapped[int] = mapped_column(
+        ForeignKey("warehouses.id"),
+        nullable=False
+    )
 
     warehouse: Mapped["Warehouse"] = relationship("Warehouse")
 
-    type: Mapped[DocumentType] = mapped_column(
-        Enum(DocumentType),
-        default=DocumentType.barcode,
+    module: Mapped[DocumentModule] = mapped_column(
+        Enum(DocumentModule),
+        default=DocumentModule.inventorization,
         nullable=False,
     )
-    doc_type: Mapped[DocumentType] = mapped_column(Enum(DocumentType), default=DocumentType.barcode, nullable=False)
-    parent_document_id: Mapped[int | None] = mapped_column(ForeignKey("inventorizations.id"))
+
+    scan_type: Mapped[ScanType] = mapped_column(
+        Enum(ScanType),
+        default=ScanType.barcode,
+        nullable=False,
+    )
+
+    parent_document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("inventorizations.id")
+    )
 
     status: Mapped[InventorizationStatus] = mapped_column(
         Enum(InventorizationStatus),
@@ -212,16 +236,24 @@ class Inventorization(Base):
         nullable=False,
     )
 
-    description: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    employees: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(255))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    employees: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+    )
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
-
 
 class InventorizationLine(Base):
     __tablename__ = "inventorization_lines"
@@ -365,7 +397,21 @@ class Receive(Base):
         index=True,
     )
 
-    type: Mapped[str | None] = mapped_column(String(40))
+    module: Mapped[DocumentModule] = mapped_column(
+        Enum(DocumentModule),
+        default=DocumentModule.receive,
+        nullable=False,
+    )
+
+    scan_type: Mapped[ScanType] = mapped_column(
+        Enum(ScanType),
+        default=ScanType.barcode,
+        nullable=False
+    )
+
+    parent_document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("receives.id")
+    )
 
     status: Mapped[ReceiveStatus] = mapped_column(
         Enum(ReceiveStatus),
@@ -392,6 +438,14 @@ class Receive(Base):
         DateTime(timezone=True),
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
+    )
+
+    description: Mapped[str | None] = mapped_column(String(255))
+
+    employees: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
     )
 
     total_lines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
