@@ -1,8 +1,8 @@
-// src/utils/excel/inventorizationExcelParser.js
+// src/utils/excel/excelParser.js
 
 import * as XLSX from "xlsx";
 
-export function parseInventorizationExcel(file) {
+export function parseExcel(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 

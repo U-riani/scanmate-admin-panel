@@ -7,6 +7,7 @@ export const PATHS = {
   TRANSFER_LIST: "/transfer-list",
   TRANSFER_DETAIL: (id) => `/transfer/${id}`,
   RECEIVE: "/receive",
+  RECEIVE_DETAIL: (id) => `/receive/${id}`,
   SALES: "/sales",
   SALES_PRICE_LISTS: "/sales/price-lists",
   SALES_PRICE_LIST_DETAIL: (id) => `/sales/price-lists/${id}`,

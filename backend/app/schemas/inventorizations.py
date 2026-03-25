@@ -22,12 +22,15 @@ class InventorizationRead(ORMModel):
     name: str
     warehouse_id: int
     warehouse_name: str | None = None
-    type: str
-    doc_type: str
+
+    module: DocumentModule
+    scan_type: ScanType
+
     parent_document_id: int | None = None
     status: str
     description: str | None = None
     employees: list[int] = []
+
     created_at: datetime
     updated_at: datetime
 

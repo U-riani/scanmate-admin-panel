@@ -1,6 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
 from app.schemas.common import ORMModel
+from app.models.enums import DocumentModule, ScanType
 
 
 class TransferCreate(BaseModel):
@@ -8,9 +9,10 @@ class TransferCreate(BaseModel):
     number: str | None = None
     from_warehouse_id: int
     to_warehouse_id: int
-    type: str | None = None
-    sender_user_id: int | None = None
-    receiver_user_id: int | None = None
+    module: DocumentModule
+    scan_type: ScanType
+    sender_user_ids: list[int] = []
+    receiver_user_ids: list[int] = []
     created_by: int | None = None
 
 
@@ -28,10 +30,11 @@ class TransferRead(ORMModel):
     number: str | None = None
     from_warehouse_id: int
     to_warehouse_id: int
-    type: str | None = None
+    module: DocumentModule
+    scan_type: ScanType
     status: str
-    sender_user_id: int | None = None
-    receiver_user_id: int | None = None
+    sender_user_ids: list[int] = []
+    receiver_user_ids: list[int] = []
     sender_finished_at: datetime | None = None
     receiver_finished_at: datetime | None = None
     signature_status: str
@@ -83,3 +86,7 @@ class TransferLineRead(ORMModel):
     receiver_scanned_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class ImportRowsResponse(BaseModel):
+    imported: int

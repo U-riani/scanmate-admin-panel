@@ -1,6 +1,8 @@
 export const QUERY_KEYS = {
   inventorizations: ["inventorizations"],
   inventorizationLines: (documentId) => ["inventorizationLines", documentId],
+  receives: ["receives"],
+  receiveLines: (documentId) => ["receiveLines", documentId],
   pocketRoles: ["pocketRoles"],
   pocketUsers: ["pocketUsers"],
   priceLookup: (warehouseId, barcode) => ["priceLookup", warehouseId, barcode],

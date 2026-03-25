@@ -15,12 +15,21 @@ export default function CreateTransferModal({ open, onClose }) {
     number: "",
     from_warehouse_id: currentWarehouseId,
     to_warehouse_id: "",
-    type: "barcode",
-    sender_user_id: "",
-    receiver_user_id: "",
+    module: "transfer",
+    scan_type: "barcode",
+    sender_user_ids: [],
+    receiver_user_ids: [],
   });
 
   if (!open) return null;
+
+  const senderUsers = form.from_warehouse_id
+    ? users.filter((u) => u.warehouses?.includes(form.from_warehouse_id))
+    : [];
+
+  const receiverUsers = form.to_warehouse_id
+    ? users.filter((u) => u.warehouses?.includes(form.to_warehouse_id))
+    : [];
 
   function updateField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -31,10 +40,14 @@ export default function CreateTransferModal({ open, onClose }) {
     createMutation.mutate(form, {
       onSuccess: () => {
         setForm({
-          name: "", number: "",
+          name: "",
+          number: "",
           from_warehouse_id: currentWarehouseId,
-          to_warehouse_id: "", type: "barcode",
-          sender_user_id: "", receiver_user_id: "",
+          to_warehouse_id: "",
+          module: "transfer",
+          scan_type: "barcode",
+          sender_user_ids: [],
+          receiver_user_ids: [],
         });
         onClose();
       },
@@ -42,13 +55,17 @@ export default function CreateTransferModal({ open, onClose }) {
   }
 
   const otherWarehouses = warehouses.filter((w) => w.id !== currentWarehouseId);
-
   return (
     <div className="glass-modal-backdrop">
-      <div className="glass-modal" style={{ width: 500, maxHeight: "90vh", overflowY: "auto" }}>
+      <div
+        className="glass-modal"
+        style={{ width: 500, maxHeight: "90vh", overflowY: "auto" }}
+      >
         <div className="glass-modal-header">
           <h2 className="glass-modal-title">Create Transfer</h2>
-          <button className="glass-modal-close" onClick={onClose}>✕</button>
+          <button className="glass-modal-close" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -83,7 +100,9 @@ export default function CreateTransferModal({ open, onClose }) {
               style={{ opacity: 0.6 }}
             >
               {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
               ))}
             </select>
           </div>
@@ -92,13 +111,17 @@ export default function CreateTransferModal({ open, onClose }) {
             <label className="field-label">To Warehouse</label>
             <select
               value={form.to_warehouse_id}
-              onChange={(e) => updateField("to_warehouse_id", Number(e.target.value))}
+              onChange={(e) =>
+                updateField("to_warehouse_id", Number(e.target.value))
+              }
               className="glass-select"
               required
             >
               <option value="">Select destination</option>
               {otherWarehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
               ))}
             </select>
           </div>
@@ -106,43 +129,95 @@ export default function CreateTransferModal({ open, onClose }) {
           <div>
             <label className="field-label">Transfer Type</label>
             <select
-              value={form.type}
-              onChange={(e) => updateField("type", e.target.value)}
+              value={form.scan_type}
+              onChange={(e) => updateField("scan_type", e.target.value)}
               className="glass-select"
             >
               <option value="barcode">Barcode</option>
-              <option value="box">Box</option>
+              <option value="loots">Loots</option>
+              <option value="manual">Manual</option>
             </select>
           </div>
 
           <div>
-            <label className="field-label">Sender User</label>
-            <select
-              value={form.sender_user_id}
-              onChange={(e) => updateField("sender_user_id", Number(e.target.value))}
-              className="glass-select"
-              required
-            >
-              <option value="">Select sender</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.username}</option>
-              ))}
-            </select>
+            <p>
+              Sender users (Warehouse:
+              {warehouses.find((w) => w.id === form.from_warehouse_id)?.name})
+            </p>{" "}
+            <div className="space-y-1">
+              {senderUsers.map((u) => {
+                const checked = form.sender_user_ids.includes(u.id);
+
+                return (
+                  <label key={u.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          updateField("sender_user_ids", [
+                            ...form.sender_user_ids,
+                            u.id,
+                          ]);
+                        } else {
+                          updateField(
+                            "sender_user_ids",
+                            form.sender_user_ids.filter((id) => id !== u.id),
+                          );
+                        }
+                      }}
+                    />
+                    {u.username}
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           <div>
-            <label className="field-label">Receiver User</label>
-            <select
-              value={form.receiver_user_id}
-              onChange={(e) => updateField("receiver_user_id", Number(e.target.value))}
-              className="glass-select"
-              required
-            >
-              <option value="">Select receiver</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.username}</option>
-              ))}
-            </select>
+            <p>
+              Receiver users (Warehouse:
+              {warehouses.find((w) => w.id === form.to_warehouse_id)?.name})
+            </p>
+            <div className="space-y-1">
+              {!form.to_warehouse_id ? (
+                <p className="text-sm text-gray-500">
+                  First select recaiver warehouse
+                </p>
+              ) : (
+                receiverUsers.length == 0 && (
+                  <p className="text-sm text-gray-500">
+                    No users for selected receiver warehouse
+                  </p>
+                )
+              )}
+              {receiverUsers.map((u) => {
+                const checked = form.receiver_user_ids.includes(u.id);
+
+                return (
+                  <label key={u.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          updateField("receiver_user_ids", [
+                            ...form.receiver_user_ids,
+                            u.id,
+                          ]);
+                        } else {
+                          updateField(
+                            "receiver_user_ids",
+                            form.receiver_user_ids.filter((id) => id !== u.id),
+                          );
+                        }
+                      }}
+                    />
+                    {u.username}
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -154,7 +229,13 @@ export default function CreateTransferModal({ open, onClose }) {
             >
               {createMutation.isPending ? "Creating…" : "Create Transfer"}
             </button>
-            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
           </div>
         </form>
       </div>

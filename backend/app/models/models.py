@@ -116,8 +116,17 @@ class Transfer(Base):
         nullable=False,
     )
 
-    sender_user_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
-    receiver_user_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
+    sender_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False
+    )
+
+    receiver_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False
+    )
 
     sender_finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     receiver_finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -182,8 +191,17 @@ class TransferLine(Base):
 
     difference_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    sender_user_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
-    receiver_user_id: Mapped[int | None] = mapped_column(ForeignKey("pocket_users.id"))
+    sender_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False
+    )
+
+    receiver_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False
+    )
 
     sender_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     receiver_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -419,8 +437,10 @@ class Receive(Base):
         nullable=False,
     )
 
-    receiver_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pocket_users.id")
+    receiver_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
     )
 
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -480,7 +500,7 @@ class ReceiveLine(Base):
 
     expected_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    received_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    counted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     recount_qty: Mapped[int | None] = mapped_column(Integer)
 

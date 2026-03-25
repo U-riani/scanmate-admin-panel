@@ -14,6 +14,7 @@ from app.schemas.transfers import (
     TransferRead,
     TransferSignRequest,
     TransferStatusUpdate,
+    ImportRowsResponse
 )
 from app.services.transfers import recalc_transfer_stats
 from app.services.utils import get_or_404
@@ -58,6 +59,46 @@ def update_status(transfer_id: int, payload: TransferStatusUpdate, db: Session =
     db.refresh(obj)
 
     return obj
+
+@router.post("/{doc_id}/import-lines", response_model=ImportRowsResponse)
+def import_lines(doc_id: int, payload: list[dict], db: Session = Depends(get_db)):
+
+    get_or_404(db, Transfer, doc_id, "Transfer not found")
+
+    created = []
+
+    for row in payload:
+
+        line = TransferLine(
+            document_id=doc_id,
+            barcode=row.get("Barcode"),
+            article_code=row.get("ArticCode"),
+            product_name=row.get("Name"),
+            color=row.get("Color"),
+            size=row.get("Size"),
+            price=float(row.get("Price") or 0),
+            expected_qty=int(row.get("Initial_Quantity") or 0),
+            box_id=row.get("Box_Id"),
+        )
+
+        db.add(line)
+        created.append(line)
+
+    db.commit()
+
+    recalc_transfer_stats(db, doc_id)
+    db.commit()
+
+    return {"imported": len(created)}
+
+
+@router.get("/{doc_id}/lines", response_model=list[TransferLineRead])
+def list_lines(doc_id: int, db: Session = Depends(get_db)):
+    return db.scalars(
+        select(TransferLine)
+        .where(TransferLine.document_id == doc_id)
+        .order_by(TransferLine.id)
+    ).all()
 
 
 @router.patch("/{transfer_id}/sign", response_model=TransferRead)

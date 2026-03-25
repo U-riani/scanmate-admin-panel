@@ -1,22 +1,24 @@
-from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.db.session import get_db
-from app.models.enums import ReceiveStatus
 from app.models.models import Receive, ReceiveLine
+from app.models.enums import ReceiveStatus
 from app.schemas.receives import (
     ReceiveCreate,
+    ReceiveRead,
+    ReceiveStatusUpdate,
     ReceiveLineCreate,
     ReceiveLineRead,
     ReceiveLineUpdate,
-    ReceiveRead,
-    ReceiveStatusUpdate,
+    ImportRowsResponse
 )
+
 from app.services.utils import get_or_404
 
 router = APIRouter()
+
 
 @router.get("", response_model=list[ReceiveRead])
 def list_receives(db: Session = Depends(get_db)):
@@ -30,7 +32,7 @@ def create_receive(payload: ReceiveCreate, db: Session = Depends(get_db)):
 
     obj = Receive(
         **payload.model_dump(),
-        status=TransferStatus.draft,
+        status=ReceiveStatus.draft,
     )
 
     db.add(obj)
@@ -41,19 +43,11 @@ def create_receive(payload: ReceiveCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/{receive_id}/status", response_model=ReceiveRead)
-def update_status(
-    receive_id: int,
-    payload: ReceiveStatusUpdate,
-    db: Session = Depends(get_db),
-):
+def update_status(receive_id: int, payload: ReceiveStatusUpdate, db: Session = Depends(get_db)):
 
-    obj = get_or_404(db, Receive, receive_id, "Receive document not found")
+    obj = get_or_404(db, Receive, receive_id, "Receive not found")
 
     obj.status = payload.status
-
-    if payload.status == ReceiveStatus.closed:
-        obj.is_locked = True
-        obj.closed_at = datetime.now(timezone.utc)
 
     db.add(obj)
     db.commit()
@@ -61,61 +55,35 @@ def update_status(
 
     return obj
 
+
 @router.get("/{receive_id}/lines", response_model=list[ReceiveLineRead])
 def list_lines(receive_id: int, db: Session = Depends(get_db)):
 
-    get_or_404(db, Receive, receive_id, "Receive document not found")
+    get_or_404(db, Receive, receive_id)
 
     return db.scalars(
         select(ReceiveLine)
         .where(ReceiveLine.document_id == receive_id)
-        .order_by(ReceiveLine.id)
     ).all()
 
-@router.post("/{receive_id}/lines", response_model=ReceiveLineRead)
-def create_line(
-    receive_id: int,
-    payload: ReceiveLineCreate,
-    db: Session = Depends(get_db),
-):
 
-    get_or_404(db, Receive, receive_id, "Receive document not found")
+@router.post("/{receive_id}/lines/import", response_model=ImportRowsResponse)
+def import_lines(receive_id: int, rows: list[ReceiveLineCreate], db: Session = Depends(get_db)):
+    print(rows)
+    get_or_404(db, Receive, receive_id)
 
-    line = ReceiveLine(
-        document_id=receive_id,
-        **payload.model_dump(),
-    )
+    created = 0
 
-    db.add(line)
-    db.commit()
-    db.refresh(line)
+    for row in rows:
 
-    return line
+        line = ReceiveLine(
+            document_id=receive_id,
+            **row.model_dump()
+        )
 
-@router.patch("/lines/{line_id}", response_model=ReceiveLineRead)
-def update_line(
-    line_id: int,
-    payload: ReceiveLineUpdate,
-    db: Session = Depends(get_db),
-):
+        db.add(line)
+        created += 1
 
-    line = get_or_404(db, ReceiveLine, line_id, "Receive line not found")
-
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(line, field, value)
-
-    db.add(line)
-    db.commit()
-    db.refresh(line)
-
-    return line
-
-@router.delete("/lines/{line_id}")
-def delete_line(line_id: int, db: Session = Depends(get_db)):
-
-    line = get_or_404(db, ReceiveLine, line_id, "Receive line not found")
-
-    db.delete(line)
     db.commit()
 
-    return {"success": True}
+    return {"imported": created}

@@ -1,34 +1,36 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { useInventorizations } from "../../queries/inventorizationQuery";
+import { useReceives } from "../../queries/receiveQuery";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
-import { useInventorizationLines } from "../../queries/inventorizationLinesQuery";
-import { useInventorizationStatusMutation } from "../../queries/inventorizationStatusMutation";
-import { useCreateRecount } from "../../queries/inventorizationRecountMutation";
-import { preloadLinesFromWarehouse } from "../../api/inventorizationLinesService";
+import { useReceiveLines } from "../../queries/receiveLinesQuery";
+import { useReceiveStatusMutation, useCreateRecount } from "../../queries/receiveMutation";
+// import { useTransferLines } from "../../queries/transferLinesQuery";
+
+// import { useCreateRecount } from "../../queries/receiveRecountMutation";
+// import { preloadLinesFromWarehouse } from "../../api/receiveLinesService";
 import StatusBadge from "../../components/documents/StatusBadge";
-import ImportInventorizationExcelModal from "../../components/inventorization/ImportInventorizationExcelModal";
-import { INVENTORIZATION_FLOW } from "../../config/inventorizationStatusFlow";
+import { RECEIVE_FLOW } from "../../config/receiveStatusFlow";
 import {
   downloadTemplate,
   TEMPLATES,
 } from "../../utils/excel/downloadTemplate";
+import ImportReceiveExcelModal from "../../components/receive/ImportReceiveExcelModal";
 
-export default function InventorizationDetail() {
+export default function ReceiveDetail() {
   const { id } = useParams();
   const [selectedLines, setSelectedLines] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
 
-  const { data: docs = [] } = useInventorizations();
+  const { data: docs = [] } = useReceives();
   const { data: warehouses = [] } = useWarehouses();
   const { data: pocketUsers = [] } = usePocketUsers();
   const recountMutation = useCreateRecount();
 
   const doc = docs.find((d) => String(d.id) === id);
-  const { data: lines = [] } = useInventorizationLines(doc?.id);
-  const statusMutation = useInventorizationStatusMutation();
-  console.log(lines)
+  const { data: lines = [] } = useReceiveLines(doc?.id);
+  const statusMutation = useReceiveStatusMutation();
+  console.log(doc)
 
   if (!doc)
     return (
@@ -41,7 +43,8 @@ export default function InventorizationDetail() {
     );
 
   const warehouse = warehouses.find((w) => w.id === doc.warehouse_id);
-  const employees = doc.employees
+  
+  const employees = doc.receiver_user_ids
     .map((eid) => pocketUsers.find((u) => u.id === eid))
     .filter(Boolean);
 
@@ -51,7 +54,7 @@ export default function InventorizationDetail() {
     totalLines === 0 ? 0 : Math.round((countedLines / totalLines) * 100);
 
   function renderActions(status) {
-    const allowed = INVENTORIZATION_FLOW[status] || [];
+    const allowed = RECEIVE_FLOW[status] || [];
     return allowed.map((nextStatus) => (
       <button
         key={nextStatus}
@@ -100,7 +103,7 @@ export default function InventorizationDetail() {
 
   return (
     <div className="space-y-5">
-      <ImportInventorizationExcelModal
+      <ImportReceiveExcelModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
         documentId={doc.id}
@@ -110,7 +113,7 @@ export default function InventorizationDetail() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title">
-            Inventorization{" "}
+            Receive{" "}
             <span
               className="font-mono"
               style={{ color: "var(--accent-cyan)", fontSize: "1.1rem" }}
@@ -134,8 +137,8 @@ export default function InventorizationDetail() {
               className="btn btn-secondary btn-sm"
               onClick={() =>
                 downloadTemplate(
-                  TEMPLATES.inventorizationLines.headers,
-                  TEMPLATES.inventorizationLines.filename,
+                  TEMPLATES.receiveLines.headers,
+                  TEMPLATES.receiveLines.filename,
                 )
               }
             >
@@ -216,7 +219,7 @@ export default function InventorizationDetail() {
           <p className="section-label mb-3">Available Actions</p>
           <div className="flex gap-2 flex-wrap">
             {renderActions(doc.status)}
-            {(INVENTORIZATION_FLOW[doc.status] || []).length === 0 && (
+            {(RECEIVE_FLOW[doc.status] || []).length === 0 && (
               <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                 No transitions available
               </p>
@@ -257,7 +260,7 @@ export default function InventorizationDetail() {
       <div className="glass-card p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 style={{ fontWeight: 600, fontSize: "0.9375rem" }}>
-            Inventorization Lines
+            Receive Lines
           </h2>
           {selectedLines.length > 0 && (
             <button className="btn btn-warning btn-sm" onClick={createRecount}>
@@ -290,7 +293,7 @@ export default function InventorizationDetail() {
                       padding: "2rem",
                     }}
                   >
-                    No lines — start inventorization to load products
+                    No lines — start receive to load products
                   </td>
                 </tr>
               ) : (

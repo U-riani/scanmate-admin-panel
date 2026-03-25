@@ -13,6 +13,7 @@ import Login from "../pages/login/Login";
 import LoginAccess from "../pages/loginAccess/LoginAccess";
 import Api from "../pages/api/Api";
 import Receive from "../pages/receive/Receive";
+import ReceiveDetail from "../pages/receive/ReceiveDetail";
 import Report from "../pages/report/Report";
 import RolesPermissions from "../pages/rolesPermissions/RolesPermissions";
 import Sales from "../pages/sales/Sales";
@@ -120,6 +121,14 @@ export default function Router() {
           element={(
             <ModuleRoute module="inventorization">
               <InventorizationDetail />
+            </ModuleRoute>
+          )}
+        />
+        <Route
+          path={`${PATHS.RECEIVE}/:id`}
+          element={(
+            <ModuleRoute module="receive">
+              <ReceiveDetail />
             </ModuleRoute>
           )}
         />

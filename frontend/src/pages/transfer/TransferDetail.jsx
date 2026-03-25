@@ -3,7 +3,12 @@ import { useState } from "react";
 import { useTransfers } from "../../queries/transferQuery";
 import { useTransferLines } from "../../queries/transferLinesQuery";
 import { useTransferStatusMutation } from "../../queries/transferStatusMutation";
-import { useAddTransferLines, useUpdateTransferLine, useDeleteTransferLine } from "../../queries/transferLinesMutation";
+import {
+  useAddTransferLines,
+  useUpdateTransferLine,
+  useDeleteTransferLine,
+  useImportTransferLines,
+} from "../../queries/transferLinesMutation";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
 import AddProductModal from "../../components/transfer/AddProductModal";
@@ -11,7 +16,11 @@ import WarehouseProductSelector from "../../components/transfer/WarehouseProduct
 import ExcelImportModal from "../../components/transfer/ExcelImportModal";
 import StatusBadge from "../../components/documents/StatusBadge";
 import { TRANSFER_FLOW } from "../../config/transferStatusFlow";
-import { downloadTemplate, TEMPLATES } from "../../utils/excel/downloadTemplate";
+import {
+  downloadTemplate,
+  TEMPLATES,
+} from "../../utils/excel/downloadTemplate";
+import { toast } from "react-hot-toast";
 
 export default function TransferDetail() {
   const { id } = useParams();
@@ -24,6 +33,7 @@ export default function TransferDetail() {
 
   const statusMutation = useTransferStatusMutation();
   const addLinesMutation = useAddTransferLines();
+  const importLinesMutation = useImportTransferLines();
   const updateLineMutation = useUpdateTransferLine();
   const deleteLineMutation = useDeleteTransferLine();
 
@@ -31,11 +41,15 @@ export default function TransferDetail() {
   const [excelModal, setExcelModal] = useState(false);
   const [warehouseSelector, setWarehouseSelector] = useState(false);
 
-  if (!doc) return (
-    <div className="glass-card p-8 text-center" style={{ color: "var(--text-secondary)" }}>
-      Transfer not found
-    </div>
-  );
+  if (!doc)
+    return (
+      <div
+        className="glass-card p-8 text-center"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        Transfer not found
+      </div>
+    );
 
   function getWarehouseName(wid) {
     return warehouses.find((w) => w.id === wid)?.name ?? "—";
@@ -43,28 +57,54 @@ export default function TransferDetail() {
   function getUserName(uid) {
     return users.find((u) => u.id === uid)?.username ?? "—";
   }
+
+  function getUserNames(ids) {
+    if (!ids || ids.length === 0) return "—";
+
+    return ids
+      .map((id) => users.find((u) => u.id === id)?.username)
+      .filter(Boolean)
+      .join(", ");
+  }
   function renderActions(status) {
     const allowed = TRANSFER_FLOW[status] || [];
     return allowed.map((next) => (
-      <button key={next} className="btn btn-primary btn-sm" onClick={() => statusMutation.mutate({ id: doc.id, status: next })}>
+      <button
+        key={next}
+        className="btn btn-primary btn-sm"
+        onClick={() => statusMutation.mutate({ id: doc.id, status: next })}
+      >
         → {next.replace(/_/g, " ")}
       </button>
     ));
   }
+
   function addProduct(product) {
     addLinesMutation.mutate({ documentId: doc.id, products: [product] });
   }
+
   function addWarehouseProduct(product) {
     addLinesMutation.mutate({ documentId: doc.id, products: [product] });
     setWarehouseSelector(false);
   }
+
   function importExcel(products) {
-    addLinesMutation.mutate({ documentId: doc.id, products });
+    importLinesMutation.mutate({ documentId: doc.id, products });
+
+    toast.success(`${products.length} lines imported`);
+
     setExcelModal(false);
   }
+
   function formatDate(str) {
     if (!str) return "—";
-    return new Date(str).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return new Date(str).toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   return (
@@ -74,43 +114,81 @@ export default function TransferDetail() {
         <div>
           <h1 className="page-title">
             Transfer{" "}
-            <span className="font-mono" style={{ color: "var(--accent-cyan)", fontSize: "1.1rem" }}>
+            <span
+              className="font-mono"
+              style={{ color: "var(--accent-cyan)", fontSize: "1.1rem" }}
+            >
               #{doc.id}
             </span>
           </h1>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.8125rem", marginTop: "2px" }}>
+          <p
+            style={{
+              color: "var(--text-secondary)",
+              fontSize: "0.8125rem",
+              marginTop: "2px",
+            }}
+          >
             {doc.name} · {doc.number}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button className="btn btn-secondary btn-sm" onClick={() => setAddModal(true)}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setAddModal(true)}
+          >
             + Add Product
           </button>
           <button
             className="btn btn-secondary btn-sm"
-            onClick={() => downloadTemplate(TEMPLATES.transferLines.headers, TEMPLATES.transferLines.filename)}
+            onClick={() =>
+              downloadTemplate(
+                TEMPLATES.transferLines.headers,
+                TEMPLATES.transferLines.filename,
+              )
+            }
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             Template
           </button>
-          <button className="btn btn-success btn-sm" onClick={() => setExcelModal(true)}>
+          <button
+            className="btn btn-success btn-sm"
+            onClick={() => setExcelModal(true)}
+          >
             Import Excel
           </button>
-          <button className="btn btn-purple btn-sm" onClick={() => setWarehouseSelector(!warehouseSelector)}>
+          <button
+            className="btn btn-purple btn-sm"
+            onClick={() => setWarehouseSelector(!warehouseSelector)}
+          >
             Warehouse Products
           </button>
         </div>
       </div>
 
       {/* Modals */}
-      <AddProductModal open={addModal} onClose={() => setAddModal(false)} onAdd={addProduct} />
+      <AddProductModal
+        open={addModal}
+        onClose={() => setAddModal(false)}
+        onAdd={addProduct}
+      />
 
       {warehouseSelector && (
         <div className="glass-card p-5">
-          <WarehouseProductSelector warehouseId={doc.from_warehouse_id} onSelect={addWarehouseProduct} />
+          <WarehouseProductSelector
+            warehouseId={doc.from_warehouse_id}
+            onSelect={addWarehouseProduct}
+          />
         </div>
       )}
       {excelModal && (
@@ -124,12 +202,45 @@ export default function TransferDetail() {
         <div className="glass-card p-5">
           <p className="section-label mb-3">Document Info</p>
           <div>
-            <div className="info-row"><span className="info-label">From</span><span className="info-value">{getWarehouseName(doc.from_warehouse_id)}</span></div>
-            <div className="info-row"><span className="info-label">To</span><span className="info-value">{getWarehouseName(doc.to_warehouse_id)}</span></div>
-            <div className="info-row"><span className="info-label">Status</span><span className="info-value"><StatusBadge status={doc.status} /></span></div>
-            <div className="info-row"><span className="info-label">Sender</span><span className="info-value">{getUserName(doc.sender_user_id)}</span></div>
-            <div className="info-row"><span className="info-label">Receiver</span><span className="info-value">{getUserName(doc.receiver_user_id)}</span></div>
-            <div className="info-row"><span className="info-label">Created</span><span className="info-value cell-mono" style={{ fontSize: "0.82rem" }}>{formatDate(doc.created_at)}</span></div>
+            <div className="info-row">
+              <span className="info-label">From</span>
+              <span className="info-value">
+                {getWarehouseName(doc.from_warehouse_id)}
+              </span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">To</span>
+              <span className="info-value">
+                {getWarehouseName(doc.to_warehouse_id)}
+              </span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Status</span>
+              <span className="info-value">
+                <StatusBadge status={doc.status} />
+              </span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Sender</span>
+              <span className="info-value">
+                {getUserNames(doc.sender_user_ids)}
+              </span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Receiver</span>
+              <span className="info-value">
+                {getUserNames(doc.receiver_user_ids)}
+              </span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Created</span>
+              <span
+                className="info-value cell-mono"
+                style={{ fontSize: "0.82rem" }}
+              >
+                {formatDate(doc.created_at)}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -138,7 +249,9 @@ export default function TransferDetail() {
           <div className="flex gap-2 flex-wrap">
             {renderActions(doc.status)}
             {(TRANSFER_FLOW[doc.status] || []).length === 0 && (
-              <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>No transitions available</p>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
+                No transitions available
+              </p>
             )}
           </div>
 
@@ -155,7 +268,15 @@ export default function TransferDetail() {
             ].map(({ label, value }) => (
               <div key={label}>
                 <p className="section-label">{label}</p>
-                <p className="font-mono" style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", marginTop: "2px" }}>
+                <p
+                  className="font-mono"
+                  style={{
+                    fontSize: "1.25rem",
+                    fontWeight: 700,
+                    color: "var(--text-primary)",
+                    marginTop: "2px",
+                  }}
+                >
                   {value ?? 0}
                 </p>
               </div>
@@ -166,7 +287,15 @@ export default function TransferDetail() {
 
       {/* Lines table */}
       <div className="glass-card p-5">
-        <h2 style={{ fontWeight: 600, fontSize: "0.9375rem", marginBottom: "1rem" }}>Transfer Lines</h2>
+        <h2
+          style={{
+            fontWeight: 600,
+            fontSize: "0.9375rem",
+            marginBottom: "1rem",
+          }}
+        >
+          Transfer Lines
+        </h2>
         <div className="glass-table-wrapper">
           <table className="glass-table">
             <thead>
@@ -184,7 +313,14 @@ export default function TransferDetail() {
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem" }}>
+                  <td
+                    colSpan={8}
+                    style={{
+                      textAlign: "center",
+                      color: "var(--text-muted)",
+                      padding: "2rem",
+                    }}
+                  >
                     No lines yet — add products above
                   </td>
                 </tr>
@@ -202,9 +338,16 @@ export default function TransferDetail() {
                           type="number"
                           value={line.sent_qty}
                           className="glass-input font-mono"
-                          style={{ width: 80, padding: "0.3rem 0.5rem", textAlign: "center" }}
+                          style={{
+                            width: 80,
+                            padding: "0.3rem 0.5rem",
+                            textAlign: "center",
+                          }}
                           onChange={(e) =>
-                            updateLineMutation.mutate({ lineId: line.id, data: { sent_qty: Number(e.target.value) } })
+                            updateLineMutation.mutate({
+                              lineId: line.id,
+                              data: { sent_qty: Number(e.target.value) },
+                            })
                           }
                         />
                       </td>
@@ -213,9 +356,16 @@ export default function TransferDetail() {
                           type="number"
                           value={line.received_qty}
                           className="glass-input font-mono"
-                          style={{ width: 80, padding: "0.3rem 0.5rem", textAlign: "center" }}
+                          style={{
+                            width: 80,
+                            padding: "0.3rem 0.5rem",
+                            textAlign: "center",
+                          }}
                           onChange={(e) =>
-                            updateLineMutation.mutate({ lineId: line.id, data: { received_qty: Number(e.target.value) } })
+                            updateLineMutation.mutate({
+                              lineId: line.id,
+                              data: { received_qty: Number(e.target.value) },
+                            })
                           }
                         />
                       </td>

@@ -1,13 +1,9 @@
 import { useState } from "react";
 import { parseExcel } from "../../utils/excel/excelParser";
-import { useImportInventorizationLines } from "../../queries/inventorizationMutation";
+import { useImportReceiveLines } from "../../queries/receiveMutation";
 
-export default function ImportInventorizationExcelModal({
-  open,
-  onClose,
-  documentId,
-}) {
-  const importMutation = useImportInventorizationLines();
+export default function ImportReceiveExcelModal({ open, onClose, documentId }) {
+  const importMutation = useImportReceiveLines();
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
 
@@ -16,20 +12,26 @@ export default function ImportInventorizationExcelModal({
   async function handleFile(e) {
     const file = e.target.files[0];
     if (!file) return;
+
     const parsed = await parseExcel(file);
+
     const mapped = parsed.map((row) => ({
-      id: String(row["Id"]),
       barcode: String(row["Barcode"]),
-      initial_qty: Number(row["Initial_Quantity"]),
-      scanned_qty: Number(row["Scanned_Quantity"]),
-      recounted_qty: Number(row["Recounted"]),
-      product_name: String(row["Name"]),
-      color: String(row["Color"]),
-      size: String(row["Size"]),
-      price: Number(row["Price"]),
-      article_code: String(row["ArticCode"]),
-      box_id: String(row["Box_Id"]),
+
+      article_code: row["ArticCode"] || null,
+      product_name: row["Name"] || null,
+
+      color: row["Color"] || null,
+      size: row["Size"] || null,
+
+      price: Number(row["Price"] || 0),
+
+      expected_qty: Number(row["Initial_Quantity"] || 0),
+      counted_qty: Number(row["Scanned_Quantity"] || 0),
+
+      box_id: row["Box_Id"] || null,
     }));
+
     setRows(mapped);
     setSummary({ rows: mapped.length });
   }
@@ -51,7 +53,7 @@ export default function ImportInventorizationExcelModal({
     <div className="glass-modal-backdrop">
       <div className="glass-modal" style={{ width: 480 }}>
         <div className="glass-modal-header">
-          <h2 className="glass-modal-title">Import Inventorization Items</h2>
+          <h2 className="glass-modal-title">Import Receive Items</h2>
           <button className="glass-modal-close" onClick={onClose}>
             ✕
           </button>

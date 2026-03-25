@@ -4,8 +4,12 @@ export function getTransferLines(documentId) {
   return apiClient.get(`/transfers/${documentId}/lines`);
 }
 
-export function addTransferLines(documentId, products) {
-  return apiClient.post(`/transfers/${documentId}/lines`, products);
+export function addTransferLines(documentId, rows) {
+  return apiClient.post(`/transfers/${documentId}/lines`, rows);
+}
+
+export function importTransferLines(docId, rows) {
+  return apiClient.post(`/transfers/${docId}/import-lines`, rows);
 }
 
 export function updateSenderScan(lineId, qty, userId) {

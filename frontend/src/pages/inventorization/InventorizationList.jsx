@@ -114,7 +114,7 @@ export default function InventorizationList() {
                         border: "1px solid rgba(124,58,237,0.2)",
                       }}
                     >
-                      {doc.type}
+                      {doc.scan_type}
                     </span>
                   </td>
                   <td><StatusBadge status={doc.status} /></td>

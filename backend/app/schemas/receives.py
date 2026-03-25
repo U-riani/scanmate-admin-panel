@@ -1,19 +1,22 @@
 from datetime import datetime
 from pydantic import BaseModel
 from app.schemas.common import ORMModel
+from app.models.enums import DocumentModule, ScanType, ReceiveStatus
 
 
 class ReceiveCreate(BaseModel):
     name: str
     number: str | None = None
     warehouse_id: int
-    type: str | None = None
-    receiver_user_id: int | None = None
-    created_by: int | None = None
+    module: DocumentModule = DocumentModule.receive
+    scan_type: ScanType = ScanType.barcode
+    description: str | None = None
+    receiver_user_ids: list[int] = []
+
 
 
 class ReceiveStatusUpdate(BaseModel):
-    status: str
+    status: ReceiveStatus
 
 
 class ReceiveRead(ORMModel):
@@ -23,11 +26,12 @@ class ReceiveRead(ORMModel):
 
     warehouse_id: int
 
-    type: str | None = None
+    module: DocumentModule
+    scan_type: ScanType
 
-    status: str
+    status: ReceiveStatus
 
-    receiver_user_id: int | None = None
+    receiver_user_ids: list[int] = []
 
     received_at: datetime | None = None
 
@@ -44,17 +48,18 @@ class ReceiveRead(ORMModel):
     closed_at: datetime | None = None
 
 class ReceiveLineBase(BaseModel):
-    product_id: int | None = None
     barcode: str
     article_code: str | None = None
     product_name: str | None = None
 
     color: str | None = None
     size: str | None = None
-
-    price: float = 0
+    price: float | None = None
 
     expected_qty: int = 0
+    counted_qty: int | None = None
+
+    box_id: str | None = None
 
 
 class ReceiveLineCreate(ReceiveLineBase):
@@ -63,7 +68,7 @@ class ReceiveLineCreate(ReceiveLineBase):
 
 class ReceiveLineUpdate(BaseModel):
     expected_qty: int | None = None
-    received_qty: int | None = None
+    counted_qty: int | None = None
     recount_qty: int | None = None
     recount_requested: bool | None = None
 
@@ -84,7 +89,7 @@ class ReceiveLineRead(ORMModel):
     price: float
 
     expected_qty: int
-    received_qty: int
+    counted_qty: int | None = None
 
     recount_qty: int | None = None
     recount_requested: bool
@@ -99,3 +104,6 @@ class ReceiveLineRead(ORMModel):
     updated_at: datetime
 
     box_id: str | None = None
+
+class ImportRowsResponse(BaseModel):
+    imported: int
