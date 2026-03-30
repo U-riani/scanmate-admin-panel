@@ -7,6 +7,7 @@ export const QUERY_KEYS = {
   pocketUsers: ["pocketUsers"],
   priceLookup: (warehouseId, barcode) => ["priceLookup", warehouseId, barcode],
   priceUploads: ["priceUploads"],
+  sales: ["sales"],
   priceUpload: (uploadId) => ["priceUpload", uploadId],
   priceRows: (uploadId) => ["priceRows", uploadId],
   activePriceUpload: (warehouseId) => ["activePriceUpload", warehouseId],

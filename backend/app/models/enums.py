@@ -31,6 +31,7 @@ class InventorizationStatus(str, Enum):
     recount_in_progress = 'recount_in_progress'
     recount_completed = 'recount_completed'
     confirmed = 'confirmed'
+    close='close'
 
 class ReceiveStatus(str, Enum):
     draft = 'draft'
@@ -41,6 +42,7 @@ class ReceiveStatus(str, Enum):
     recount_in_progress = 'recount_in_progress'
     recount_completed = 'recount_completed'
     confirmed = 'confirmed'
+    close='close'
 
 
 

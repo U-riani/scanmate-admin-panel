@@ -17,6 +17,25 @@ from app.services.utils import get_or_404
 
 router = APIRouter()
 
+@router.get("", response_model=list[PriceUploadRead])
+def list_prices(db: Session = Depends(get_db)):
+    return db.scalars(
+        select(PriceUpload).order_by(PriceUpload.id.desc())
+    ).all()
+
+
+@router.get("/{price_id}/lines", response_model=list[PriceRowRead])
+def list_lines(price_id: int, db: Session = Depends(get_db)):
+
+    get_or_404(db, PriceUpload, price_id)
+
+    return db.scalars(
+        select(PriceRow)   # ✅ correct model
+        .where(PriceRow.upload_id == price_id)
+        .order_by(PriceRow.id)
+    ).all()
+
+
 
 def get_price_type(base_price: float, adjusted_price: float) -> PriceType:
     if adjusted_price < base_price:
