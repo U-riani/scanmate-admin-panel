@@ -29,7 +29,7 @@ def list_docs(db: Session = Depends(get_db)):
     ).all()
 
 
-@router.post("", response_model=InventorizationRead)
+@router.post("", response_model=InventorizationCreate)
 def create_doc(payload: InventorizationCreate, db: Session = Depends(get_db)):
     print("---", payload)
     obj = Inventorization(

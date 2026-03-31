@@ -13,7 +13,7 @@ export default function CreateReceiveModal({ open, onClose }) {
   const warehouse = warehouses.find((w) => w.id === currentWarehouseId);
 
   const [form, setForm] = useState({
-    name: "", type: "barcode", employees: [], description: "",
+    name: "", scan_type: "barcode", employees: [], description: "",
   });
 
   if (!open) return null;
@@ -52,7 +52,7 @@ export default function CreateReceiveModal({ open, onClose }) {
     mutate(
       {
         name: form.name,
-        type: form.type,
+        scan_type: form.scan_type,
         warehouse_id: currentWarehouseId,
         receiver_user_ids: form.employees,
         description: form.description,
@@ -60,7 +60,7 @@ export default function CreateReceiveModal({ open, onClose }) {
       {
         onSuccess: () => {
           onClose();
-          setForm({ name: "", type: "barcode", employees: [], description: "" });
+          setForm({ name: "", scan_type: "barcode", employees: [], description: "" });
         },
       }
     );
@@ -105,7 +105,7 @@ export default function CreateReceiveModal({ open, onClose }) {
 
           <div>
             <label className="field-label">Type</label>
-            <select name="type" className="glass-select" value={form.type} onChange={handleChange}>
+            <select name="scan_type" className="glass-select" value={form.scan_type} onChange={handleChange}>
               <option value="barcode">Barcode based</option>
               <option value="loots">Box based</option>
             </select>

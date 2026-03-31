@@ -71,33 +71,34 @@ def pocket_documents(
     ).all()
 
     for doc in transfer_docs:
-        from_wh = db.get(Warehouse, doc.from_warehouse_id)
-        to_wh = db.get(Warehouse, doc.to_warehouse_id)
+        if current_user.id in (doc.sender_user_ids or []):
+            from_wh = db.get(Warehouse, doc.from_warehouse_id)
+            to_wh = db.get(Warehouse, doc.to_warehouse_id)
 
-        result.append({
-            "id": doc.id,
-            "name": doc.name,
+            result.append({
+                "id": doc.id,
+                "name": doc.name,
 
-            "doc_module": "transfer",
-            "scan_type": doc.scan_type,
-            "status": doc.status,
+                "doc_module": "transfer",
+                "scan_type": doc.scan_type,
+                "status": doc.status,
 
-            "from_warehouse_id": doc.from_warehouse_id,
-            "from_warehouse_name": from_wh.name if from_wh else None,
+                "from_warehouse_id": doc.from_warehouse_id,
+                "from_warehouse_name": from_wh.name if from_wh else None,
 
-            "to_warehouse_id": doc.to_warehouse_id,
-            "to_warehouse_name": to_wh.name if to_wh else None,
+                "to_warehouse_id": doc.to_warehouse_id,
+                "to_warehouse_name": to_wh.name if to_wh else None,
 
-            "warehouse_id": None,
-            "warehouse_name": None,
+                "warehouse_id": None,
+                "warehouse_name": None,
 
-            "parent_document_id": None,
-            "description": doc.description,
-            "employees": None,
+                "parent_document_id": None,
+                "description": doc.description,
+                "employees": None,
 
-            "created_at": doc.created_at,
-            "updated_at": doc.updated_at
-        })
+                "created_at": doc.created_at,
+                "updated_at": doc.updated_at
+            })
 
     # RECEIVES
     receive_docs = db.scalars(
@@ -107,23 +108,25 @@ def pocket_documents(
     ).all()
 
     for doc in receive_docs:
-        wh = db.get(Warehouse, doc.warehouse_id)
+        if current_user.id in (doc.receiver_user_ids or []):
 
-        result.append({
-            "id": doc.id,
-            "name": doc.name,
-            "warehouse_id": doc.warehouse_id,
-            "warehouse_name": wh.name if wh else None,
-            "doc_module": "receive",
-            "scan_type": doc.scan_type,
-            "parent_document_id": doc.parent_document_id,
-            "status": doc.status,
-            "description": doc.description,
-            "employees": doc.employees,
-            "created_at": doc.created_at,
-            "updated_at": doc.updated_at
-        })
-    return result
+            wh = db.get(Warehouse, doc.warehouse_id)
+
+            result.append({
+                "id": doc.id,
+                "name": doc.name,
+                "warehouse_id": doc.warehouse_id,
+                "warehouse_name": wh.name if wh else None,
+                "doc_module": "receive",
+                "scan_type": doc.scan_type,
+                "parent_document_id": doc.parent_document_id,
+                "status": doc.status,
+                "description": doc.description,
+                "employees": doc.employees,
+                "created_at": doc.created_at,
+                "updated_at": doc.updated_at
+            })
+        return result
 
 @router.get("/{doc_id}/lines", response_model=list[PocketDocumentLine])
 def list_lines(doc_id: int, module: str, db: Session = Depends(get_db)):

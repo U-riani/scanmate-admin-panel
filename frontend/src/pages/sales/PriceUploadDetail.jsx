@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { usePriceUpload, usePriceRows } from "../../queries/priceUploadsQuery";
+import { usePriceUploads, usePriceRows } from "../../queries/priceUploadsQuery";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import ImportPriceExcelModal from "../../components/sales/ImportPriceExcelModal";
 import { downloadTemplate, TEMPLATES } from "../../utils/excel/downloadTemplate";
@@ -24,11 +24,14 @@ function LoadingSkeleton() {
 export default function PriceUploadDetail() {
   const { id } = useParams();
   const uploadId = Number(id);
-  const { data: upload, isLoading: uploadLoading } = usePriceUpload(uploadId);
+  const { data: uploads = [], isLoading: uploadLoading } = usePriceUploads(uploadId);
   const { data: rows = [], isLoading: rowsLoading } = usePriceRows(uploadId);
   const { data: warehouses = [] } = useWarehouses();
   const [search, setSearch] = useState("");
   const [importOpen, setImportOpen] = useState(false);
+
+  const upload = uploads.find((d) => String(d.id) === id);
+
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -43,6 +46,7 @@ export default function PriceUploadDetail() {
   function getWarehouseName(wid) {
     return warehouses.find((w) => w.id === wid)?.name ?? "—";
   }
+
   function formatDate(str) {
     if (!str) return "—";
     return new Date(str).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -63,7 +67,7 @@ export default function PriceUploadDetail() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title">
-            Price Upload{" "}
+            Price Upload
             <span className="font-mono" style={{ color: "var(--accent-cyan)", fontSize: "1.1rem" }}>
               #{upload.id}
             </span>

@@ -52,7 +52,7 @@ export default function CreateInventorizationModal({ open, onClose }) {
     mutate(
       {
         name: form.name,
-        type: form.type,
+        scan_type: form.type,
         warehouse_id: currentWarehouseId,
         employees: form.employees,
         description: form.description,

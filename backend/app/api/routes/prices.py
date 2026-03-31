@@ -24,6 +24,9 @@ def list_prices(db: Session = Depends(get_db)):
     ).all()
 
 
+
+
+
 @router.get("/{price_id}/lines", response_model=list[PriceRowRead])
 def list_lines(price_id: int, db: Session = Depends(get_db)):
 

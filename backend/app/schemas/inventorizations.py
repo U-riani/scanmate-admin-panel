@@ -9,7 +9,7 @@ class InventorizationCreate(BaseModel):
     name: str
     warehouse_id: int
     module: DocumentModule = DocumentModule.inventorization
-    scan_type: ScanType = ScanType.barcode
+    scan_type: ScanType
     description: str | None = None
     employees: list[int] = []
 
