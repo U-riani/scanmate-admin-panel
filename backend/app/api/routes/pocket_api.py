@@ -5,10 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.enums import DocumentModule, InventorizationStatus
+from app.models.enums import DocumentModule, InventorizationStatus, InventorizationStatus, ReceiveStatus, TransferStatus
 from app.models.models import Inventorization, InventorizationLine, WarehouseProduct, Warehouse, PocketUser, Transfer, Receive
 
-from app.schemas.pocketApiSchema import PocketDocument, PocketDocumentLine
+from app.schemas.pocketApiSchema import PocketDocument, PocketDocumentLine, PocketStatusChangeRequest
 from app.schemas.inventorizations import (
     ImportRowsRequest,
     ImportRowsResponse,
@@ -44,7 +44,10 @@ def pocket_documents(
     ).all()
 
     for doc in inventorization_docs:
+        print('-inven', current_user.id)
+        print('-inven',doc.employees)
         if current_user.id in (doc.employees or []):
+            print(doc.status)
             result.append({
                 "id": doc.id,
                 "name": doc.name,
@@ -106,10 +109,12 @@ def pocket_documents(
         .where(Receive.warehouse_id.in_(current_user.warehouses))
         .order_by(Receive.id.desc())
     ).all()
-
+    print("receive stats", Receive.warehouse_id)
     for doc in receive_docs:
+        print('-receiv',current_user.id)
+        print('-receiv',doc.receiver_user_ids)
         if current_user.id in (doc.receiver_user_ids or []):
-
+            print("receiv status", doc.status)
             wh = db.get(Warehouse, doc.warehouse_id)
 
             result.append({
@@ -122,11 +127,49 @@ def pocket_documents(
                 "parent_document_id": doc.parent_document_id,
                 "status": doc.status,
                 "description": doc.description,
-                "employees": doc.employees,
+                "employees": doc.receiver_user_ids,
                 "created_at": doc.created_at,
                 "updated_at": doc.updated_at
             })
-        return result
+
+    return result
+
+@router.post("/document/{document_id}/{module}/status-change")
+def document_status_change(
+    document_id: int,
+    module: str,
+    payload: PocketStatusChangeRequest,
+    current_user: PocketUser = Depends(get_current_pocket_user),
+    db: Session = Depends(get_db),
+):
+    if module == "inventorization":
+        obj = get_or_404(db, Inventorization, document_id)
+        obj.status = InventorizationStatus(payload.status)
+
+    elif module == "receive":
+        obj = get_or_404(db, Receive, document_id)
+        obj.status = ReceiveStatus(payload.status)
+
+    elif module == "transfer":
+        obj = get_or_404(db, Transfer, document_id)
+        obj.status = TransferStatus(payload.status)
+
+    else:
+        return {"ok": False, "message": f"Unsupported module: {module}"}
+
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    return {
+        "ok": True,
+        "id": obj.id,
+        "module": module,
+        "new_status": obj.status,
+        "user_id": current_user.id,
+    }
+
+
 
 @router.get("/{doc_id}/lines", response_model=list[PocketDocumentLine])
 def list_lines(doc_id: int, module: str, db: Session = Depends(get_db)):
@@ -160,3 +203,4 @@ def list_lines(doc_id: int, module: str, db: Session = Depends(get_db)):
         return []
 
     return lines
+

@@ -52,3 +52,6 @@ class PocketDocumentLine(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PocketStatusChangeRequest(BaseModel):
+    status: str
