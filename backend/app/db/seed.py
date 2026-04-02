@@ -18,6 +18,8 @@ from app.models.models import (
     WarehouseProduct,
     WebsiteRole,
     WebsiteUser,
+    DocumentAssignment
+
 )
 from app.models.enums import (
     DocumentModule,
@@ -28,6 +30,8 @@ from app.models.enums import (
     PriceUploadStatus,
     SignatureStatus,
     TransferStatus,
+    AssignmentStatus,
+    AssignmentRole
 )
 
 _SEEDED_TABLES = [
@@ -45,6 +49,7 @@ _SEEDED_TABLES = [
     "receive_lines",
     "price_uploads",
     "price_rows",
+    "document_assignments",
 ]
 
 
@@ -257,7 +262,7 @@ def seed_database():
             to_warehouse_id=2,
             module="transfer",
             scan_type="barcode",
-            status=TransferStatus.draft,
+            status=TransferStatus.waiting_to_start,
             sender_user_ids=[1],
             receiver_user_ids=[1, 2],
             signature_status=SignatureStatus.pending,
@@ -315,7 +320,7 @@ def seed_database():
             warehouse_id=1,
             module="inventorization",
             scan_type="barcode",
-            status=InventorizationStatus.draft,
+            status=InventorizationStatus.waiting_to_start,
             description="Some description for Central Count inv",
             employees=[1, 2],
         )
@@ -362,7 +367,7 @@ def seed_database():
             warehouse_id=1,
             module="receive",
             scan_type="barcode",
-            status=ReceiveStatus.draft,
+            status=ReceiveStatus.waiting_to_start,
             receiver_user_ids=[1, 2],
             created_by=1,
             description="SOme description for TBILisi receive",
@@ -462,6 +467,73 @@ def seed_database():
         ]
         db.add_all(price_rows)
 
+        db.commit()
+
+        document_assignments = [
+            # Transfer
+            DocumentAssignment(
+                id=1,
+                document_module=DocumentModule.transfer,
+                document_id=1,
+                pocket_user_id=1,
+                role=AssignmentRole.sender,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+            DocumentAssignment(
+                id=2,
+                document_module=DocumentModule.transfer,
+                document_id=1,
+                pocket_user_id=1,
+                role=AssignmentRole.receiver,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+            DocumentAssignment(
+                id=3,
+                document_module=DocumentModule.transfer,
+                document_id=1,
+                pocket_user_id=2,
+                role=AssignmentRole.receiver,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+
+            # Inventorization
+            DocumentAssignment(
+                id=4,
+                document_module=DocumentModule.inventorization,
+                document_id=1,
+                pocket_user_id=1,
+                role=AssignmentRole.worker,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+            DocumentAssignment(
+                id=5,
+                document_module=DocumentModule.inventorization,
+                document_id=1,
+                pocket_user_id=2,
+                role=AssignmentRole.worker,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+
+            # Receive
+            DocumentAssignment(
+                id=6,
+                document_module=DocumentModule.receive,
+                document_id=1,
+                pocket_user_id=1,
+                role=AssignmentRole.worker,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+            DocumentAssignment(
+                id=7,
+                document_module=DocumentModule.receive,
+                document_id=1,
+                pocket_user_id=2,
+                role=AssignmentRole.worker,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+        ]
+
+        db.add_all(document_assignments)
         db.commit()
 
         _reset_sequences(db)

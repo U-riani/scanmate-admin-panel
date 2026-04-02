@@ -47,7 +47,7 @@ def update_status(doc_id: int, payload: InventorizationStatusUpdate, db: Session
     print("got request from admin")
     obj = get_or_404(db, Inventorization, doc_id, "Document not found")
 
-    obj.status = payload.status
+    obj.status = payload.new_status
 
     db.add(obj)
     db.commit()

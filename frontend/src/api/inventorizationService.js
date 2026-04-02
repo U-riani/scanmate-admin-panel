@@ -8,6 +8,6 @@ export function createInventorization(data) {
   return apiClient.post("/inventorization", data);
 }
 
-export function updateInventorizationStatus(id, status) {
-  return apiClient.patch(`/inventorization/${id}/status`, { status });
+export function updateInventorizationStatus(id, prevStatus, nextStatus) {
+  return apiClient.patch(`/inventorization/${id}/status`, {  prev_status: prevStatus, new_status: nextStatus  });
 }

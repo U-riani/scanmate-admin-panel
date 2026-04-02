@@ -6,7 +6,8 @@ export function useInventorizationStatusMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }) => updateInventorizationStatus(id, status),
+    mutationFn: ({ id, prevStatus, nextStatus }) =>
+      updateInventorizationStatus(id, prevStatus, nextStatus),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.inventorizations });
     },

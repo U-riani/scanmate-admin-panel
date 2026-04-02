@@ -55,3 +55,4 @@ class PocketDocumentLine(BaseModel):
 
 class PocketStatusChangeRequest(BaseModel):
     status: str
+    role: str | None = None

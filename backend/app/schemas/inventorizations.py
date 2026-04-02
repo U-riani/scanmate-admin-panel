@@ -14,7 +14,8 @@ class InventorizationCreate(BaseModel):
     employees: list[int] = []
 
 class InventorizationStatusUpdate(BaseModel):
-    status: str
+    prev_status: str
+    new_status: str
 
 
 class InventorizationRead(ORMModel):

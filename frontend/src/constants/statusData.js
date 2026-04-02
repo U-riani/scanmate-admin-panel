@@ -28,6 +28,7 @@ export const InventorizationStatus = {
   recount_in_progress: "recount_in_progress",
   recount_completed: "recount_completed",
   confirmed: "confirmed",
+  closed: "closed",
 };
 
 export const ReceiveStatus = {
@@ -39,6 +40,7 @@ export const ReceiveStatus = {
   recount_in_progress: "recount_in_progress",
   recount_completed: "recount_completed",
   confirmed: "confirmed",
+  closed: "closed",
 };
 
 export const DocumentModule = {

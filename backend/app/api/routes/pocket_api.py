@@ -1,12 +1,13 @@
 #backend/app/api/routes/pocket_api.py
 
+from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.enums import DocumentModule, InventorizationStatus, InventorizationStatus, ReceiveStatus, TransferStatus
-from app.models.models import Inventorization, InventorizationLine, WarehouseProduct, Warehouse, PocketUser, Transfer, Receive
+from app.models.enums import DocumentModule, InventorizationStatus, ReceiveStatus, TransferStatus, AssignmentStatus, AssignmentRole
+from app.models.models import Inventorization, InventorizationLine, WarehouseProduct, Warehouse, PocketUser, Transfer, Receive, DocumentAssignment
 
 from app.schemas.pocketApiSchema import PocketDocument, PocketDocumentLine, PocketStatusChangeRequest
 from app.schemas.inventorizations import (
@@ -25,6 +26,276 @@ from app.services.utils import get_or_404
 
 router = APIRouter()
 
+def _get_assignment_role_for_user(module: str, doc, current_user_id: int, requested_role: str | None) -> AssignmentRole:
+    if module in ("inventorization", "receive"):
+        return AssignmentRole.worker
+
+    if module == "transfer":
+        allowed_roles = []
+
+        if current_user_id in (doc.sender_user_ids or []):
+            allowed_roles.append(AssignmentRole.sender)
+
+        if current_user_id in (doc.receiver_user_ids or []):
+            allowed_roles.append(AssignmentRole.receiver)
+
+        if not allowed_roles:
+            raise ValueError("User is not assigned to this transfer")
+
+        if len(allowed_roles) == 1:
+            return allowed_roles[0]
+
+        if not requested_role:
+            raise ValueError("Role is required for users assigned as both sender and receiver")
+
+        try:
+            role = AssignmentRole(requested_role)
+        except Exception:
+            raise ValueError("Invalid role")
+
+        if role not in allowed_roles:
+            raise ValueError("Requested role is not allowed for this user")
+
+        return role
+
+    raise ValueError("Unsupported module")
+
+def recalc_document_status(db: Session, module: str, document_id: int):
+    assignments = db.scalars(
+        select(DocumentAssignment)
+        .where(
+            DocumentAssignment.document_module == module,
+            DocumentAssignment.document_id == document_id,
+        )
+    ).all()
+
+    if not assignments:
+        return None
+
+    statuses = [a.status for a in assignments]
+
+    if module in ("inventorization", "receive"):
+        if all(s == AssignmentStatus.waiting_to_start for s in statuses):
+            new_status = "waiting_to_start"
+
+        elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in statuses):
+            # everyone has at least started scanning
+            if all(s == AssignmentStatus.completed for s in statuses):
+                new_status = "completed"
+            else:
+                new_status = "in_progress"
+
+        elif all(s == AssignmentStatus.recount_requested for s in statuses):
+            new_status = "recount_requested"
+
+        elif all(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in statuses):
+            # everyone has at least started recount
+            if all(s == AssignmentStatus.recount_completed for s in statuses):
+                new_status = "recount_completed"
+            else:
+                new_status = "recount_in_progress"
+
+        else:
+            # mixed stage, not everyone has reached the next shared step yet
+            if any(s in (AssignmentStatus.recount_requested, AssignmentStatus.recount_in_progress,
+                         AssignmentStatus.recount_completed) for s in statuses):
+                new_status = "recount_requested"
+            else:
+                new_status = "waiting_to_start"
+
+        if module == "inventorization":
+            obj = get_or_404(db, Inventorization, document_id)
+            obj.status = InventorizationStatus(new_status)
+        else:
+            obj = get_or_404(db, Receive, document_id)
+            obj.status = ReceiveStatus(new_status)
+
+
+    elif module == "transfer":
+
+        sender_assignments = [a for a in assignments if a.role == AssignmentRole.sender]
+
+        receiver_assignments = [a for a in assignments if a.role == AssignmentRole.receiver]
+
+        obj = get_or_404(db, Transfer, document_id)
+
+        sender_statuses = [a.status for a in sender_assignments]
+
+        receiver_statuses = [a.status for a in receiver_assignments]
+
+        # 1. Sender phase first
+
+        if sender_assignments and not all(s == AssignmentStatus.completed for s in sender_statuses):
+
+            if all(s == AssignmentStatus.waiting_to_start for s in sender_statuses):
+
+                obj.status = TransferStatus.waiting_to_start
+
+
+            elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in sender_statuses):
+
+                if all(s == AssignmentStatus.completed for s in sender_statuses):
+
+                    obj.status = TransferStatus.sender_completed
+
+                else:
+
+                    obj.status = TransferStatus.sender_in_progress
+
+
+            elif all(s == AssignmentStatus.recount_requested for s in sender_statuses):
+
+                obj.status = TransferStatus.sender_recount_requested
+
+
+            elif all(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in
+                     sender_statuses):
+
+                if all(s == AssignmentStatus.recount_completed for s in sender_statuses):
+
+                    obj.status = TransferStatus.sender_recount_completed
+
+                else:
+
+                    obj.status = TransferStatus.sender_recount_in_progress
+
+
+            else:
+
+                # mixed sender stage, not all reached next shared step yet
+
+                if any(s in (
+
+                        AssignmentStatus.recount_requested,
+
+                        AssignmentStatus.recount_in_progress,
+
+                        AssignmentStatus.recount_completed,
+
+                ) for s in sender_statuses):
+
+                    obj.status = TransferStatus.sender_recount_requested
+
+                else:
+
+                    obj.status = TransferStatus.waiting_to_start
+
+
+        # 2. Sender phase finished, now evaluate receiver phase
+
+        elif sender_assignments and all(s == AssignmentStatus.completed for s in sender_statuses):
+
+            if not receiver_assignments:
+
+                obj.status = TransferStatus.sender_completed
+
+
+            elif all(s == AssignmentStatus.waiting_to_start for s in receiver_statuses):
+
+                obj.status = TransferStatus.sender_completed
+
+
+            elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in receiver_statuses):
+
+                if all(s == AssignmentStatus.completed for s in receiver_statuses):
+
+                    obj.status = TransferStatus.receive_completed
+
+                else:
+
+                    obj.status = TransferStatus.receive_in_progress
+
+
+            elif all(s == AssignmentStatus.recount_requested for s in receiver_statuses):
+
+                obj.status = TransferStatus.receive_recount_requested
+
+
+            elif all(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in
+                     receiver_statuses):
+
+                if all(s == AssignmentStatus.recount_completed for s in receiver_statuses):
+
+                    obj.status = TransferStatus.receive_recount_completed
+
+                else:
+
+                    obj.status = TransferStatus.receive_recount_in_progress
+
+
+            else:
+
+                # mixed receiver stage, not all reached next shared step yet
+
+                if any(s in (
+
+                        AssignmentStatus.recount_requested,
+
+                        AssignmentStatus.recount_in_progress,
+
+                        AssignmentStatus.recount_completed,
+
+                ) for s in receiver_statuses):
+
+                    obj.status = TransferStatus.receive_recount_requested
+
+                else:
+
+                    obj.status = TransferStatus.sender_completed
+
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj.status
+
+def _get_user_document_status(
+    db: Session,
+    module: str,
+    document_id: int,
+    current_user: PocketUser,
+) -> str | None:
+    module_enum = DocumentModule(module)
+
+    if module in ("inventorization", "receive"):
+        assignment = db.scalar(
+            select(DocumentAssignment).where(
+                DocumentAssignment.document_module == module_enum,
+                DocumentAssignment.document_id == document_id,
+                DocumentAssignment.pocket_user_id == current_user.id,
+                DocumentAssignment.role == AssignmentRole.worker,
+            )
+        )
+        return assignment.status.value if assignment else None
+
+    if module == "transfer":
+        sender_assignment = db.scalar(
+            select(DocumentAssignment).where(
+                DocumentAssignment.document_module == module_enum,
+                DocumentAssignment.document_id == document_id,
+                DocumentAssignment.pocket_user_id == current_user.id,
+                DocumentAssignment.role == AssignmentRole.sender,
+            )
+        )
+
+        receiver_assignment = db.scalar(
+            select(DocumentAssignment).where(
+                DocumentAssignment.document_module == module_enum,
+                DocumentAssignment.document_id == document_id,
+                DocumentAssignment.pocket_user_id == current_user.id,
+                DocumentAssignment.role == AssignmentRole.receiver,
+            )
+        )
+
+        if sender_assignment and sender_assignment.status != AssignmentStatus.completed:
+            return sender_assignment.status.value
+
+        if receiver_assignment:
+            return receiver_assignment.status.value
+
+        if sender_assignment:
+            return sender_assignment.status.value
+
+    return None
 
 # send all docs data(not lines)
 @router.get("/documents", response_model=list[PocketDocument])
@@ -56,7 +327,7 @@ def pocket_documents(
                 "doc_module": "inventorization",
                 "scan_type": doc.scan_type,
                 "parent_document_id": doc.parent_document_id,
-                "status": doc.status,
+                "status": _get_user_document_status(db, "inventorization", doc.id, current_user) or doc.status,
                 "description": doc.description,
                 "employees": doc.employees,
                 "created_at": doc.created_at,
@@ -74,17 +345,16 @@ def pocket_documents(
     ).all()
 
     for doc in transfer_docs:
-        if current_user.id in (doc.sender_user_ids or []):
+        if current_user.id in (doc.sender_user_ids or []) or current_user.id in (doc.receiver_user_ids or []):
             from_wh = db.get(Warehouse, doc.from_warehouse_id)
             to_wh = db.get(Warehouse, doc.to_warehouse_id)
 
             result.append({
                 "id": doc.id,
                 "name": doc.name,
-
                 "doc_module": "transfer",
                 "scan_type": doc.scan_type,
-                "status": doc.status,
+                "status": _get_user_document_status(db, "transfer", doc.id, current_user) or doc.status,
 
                 "from_warehouse_id": doc.from_warehouse_id,
                 "from_warehouse_name": from_wh.name if from_wh else None,
@@ -125,7 +395,7 @@ def pocket_documents(
                 "doc_module": "receive",
                 "scan_type": doc.scan_type,
                 "parent_document_id": doc.parent_document_id,
-                "status": doc.status,
+                "status": _get_user_document_status(db, "receive", doc.id, current_user) or doc.status,
                 "description": doc.description,
                 "employees": doc.receiver_user_ids,
                 "created_at": doc.created_at,
@@ -143,33 +413,62 @@ def document_status_change(
     db: Session = Depends(get_db),
 ):
     if module == "inventorization":
-        obj = get_or_404(db, Inventorization, document_id)
-        obj.status = InventorizationStatus(payload.status)
-
+        doc = get_or_404(db, Inventorization, document_id)
     elif module == "receive":
-        obj = get_or_404(db, Receive, document_id)
-        obj.status = ReceiveStatus(payload.status)
-
+        doc = get_or_404(db, Receive, document_id)
     elif module == "transfer":
-        obj = get_or_404(db, Transfer, document_id)
-        obj.status = TransferStatus(payload.status)
-
+        doc = get_or_404(db, Transfer, document_id)
     else:
         return {"ok": False, "message": f"Unsupported module: {module}"}
 
-    db.add(obj)
+    try:
+        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role)
+    except ValueError as e:
+        return {"ok": False, "message": str(e)}
+
+    assignment = db.scalar(
+        select(DocumentAssignment).where(
+            DocumentAssignment.document_module == module,
+            DocumentAssignment.document_id == document_id,
+            DocumentAssignment.pocket_user_id == current_user.id,
+            DocumentAssignment.role == role,
+        )
+    )
+
+    if not assignment:
+        return {"ok": False, "message": "Assignment not found for current user"}
+
+    assignment.status = AssignmentStatus(payload.status)
+
+    now = datetime.utcnow()
+    if payload.status == AssignmentStatus.in_progress:
+        assignment.loaded_at = assignment.loaded_at or now
+        assignment.started_at = assignment.started_at or now
+    elif payload.status == AssignmentStatus.completed:
+        assignment.completed_at = now
+    elif payload.status == AssignmentStatus.recount_requested:
+        assignment.recount_requested_at = now
+    elif payload.status == AssignmentStatus.recount_in_progress:
+        assignment.recount_started_at = now
+    elif payload.status == AssignmentStatus.recount_completed:
+        assignment.recount_completed_at = now
+
+    db.add(assignment)
     db.commit()
-    db.refresh(obj)
+    db.refresh(assignment)
+
+    new_document_status = recalc_document_status(db, module, document_id)
 
     return {
         "ok": True,
-        "id": obj.id,
+        "document_id": document_id,
         "module": module,
-        "new_status": obj.status,
+        "assignment_id": assignment.id,
+        "assignment_status": assignment.status,
+        "document_status": new_document_status,
         "user_id": current_user.id,
+        "role": assignment.role,
     }
-
-
 
 @router.get("/{doc_id}/lines", response_model=list[PocketDocumentLine])
 def list_lines(doc_id: int, module: str, db: Session = Depends(get_db)):

@@ -14,6 +14,8 @@ import {
   downloadTemplate,
   TEMPLATES,
 } from "../../utils/excel/downloadTemplate";
+import StatusBarComponent from "../../components/reusable/StatusBarComponent";
+import { InventorizationStatus } from "../../constants/statusData";
 
 export default function InventorizationDetail() {
   const { id } = useParams();
@@ -28,7 +30,7 @@ export default function InventorizationDetail() {
   const doc = docs.find((d) => String(d.id) === id);
   const { data: lines = [] } = useInventorizationLines(doc?.id);
   const statusMutation = useInventorizationStatusMutation();
-  console.log(lines)
+  console.log(lines);
 
   if (!doc)
     return (
@@ -50,23 +52,23 @@ export default function InventorizationDetail() {
   const progress =
     totalLines === 0 ? 0 : Math.round((countedLines / totalLines) * 100);
 
-  function renderActions(status) {
-    const allowed = INVENTORIZATION_FLOW[status] || [];
-    return allowed.map((nextStatus) => (
-      <button
-        key={nextStatus}
-        className="btn btn-primary btn-sm"
-        onClick={async () => {
-          if (nextStatus === "in_progress") {
-            await preloadLinesFromWarehouse(doc.id, doc.warehouse_id);
-          }
-          statusMutation.mutate({ id: doc.id, status: nextStatus });
-        }}
-      >
-        → {nextStatus.replace(/_/g, " ")}
-      </button>
-    ));
-  }
+  // function renderActions(status) {
+  //   const allowed = INVENTORIZATION_FLOW[status] || [];
+  //   return allowed.map((nextStatus) => (
+  //     <button
+  //       key={nextStatus}
+  //       className="btn btn-primary btn-sm"
+  //       onClick={async () => {
+  //         if (nextStatus === "in_progress") {
+  //           await preloadLinesFromWarehouse(doc.id, doc.warehouse_id);
+  //         }
+  //         statusMutation.mutate({ id: doc.id, status: nextStatus });
+  //       }}
+  //     >
+  //       → {nextStatus.replace(/_/g, " ")}
+  //     </button>
+  //   ));
+  // }
 
   function toggleRecount(lineId) {
     setSelectedLines((prev) =>
@@ -110,7 +112,7 @@ export default function InventorizationDetail() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title">
-            Inventorization{" "}
+            Inventorization
             <span
               className="font-mono"
               style={{ color: "var(--accent-cyan)", fontSize: "1.1rem" }}
@@ -127,6 +129,13 @@ export default function InventorizationDetail() {
           >
             {doc.name}
           </p>
+        </div>
+        <div>
+          <StatusBarComponent
+            documentId={doc.id}
+            statusObject={InventorizationStatus}
+            currentStatus={doc.status}
+          />
         </div>
         {doc?.status === "draft" && (
           <div className="flex gap-2 flex-wrap">
@@ -210,9 +219,8 @@ export default function InventorizationDetail() {
         </div>
       </div>
 
-      {/* Actions + Progress */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="glass-card p-5">
+        {/* <div className="glass-card p-5">
           <p className="section-label mb-3">Available Actions</p>
           <div className="flex gap-2 flex-wrap">
             {renderActions(doc.status)}
@@ -222,7 +230,7 @@ export default function InventorizationDetail() {
               </p>
             )}
           </div>
-        </div>
+        </div> */}
 
         <div className="glass-card p-5">
           <div className="flex justify-between items-center mb-3">
