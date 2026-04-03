@@ -8,8 +8,8 @@ export function createReceive(data) {
   return apiClient.post("/receive", data);
 }
 
-export function updateReceiveStatus(id, status) {
-  return apiClient.patch(`/receive/${id}/status`, { status });
+export function updateReceiveStatus(id, prevStatus, nextStatus) {
+  return apiClient.patch(`/receive/${id}/status`, { prev_status: prevStatus, new_status: nextStatus });
 }
 
 export function createRecountDocument(payload) {

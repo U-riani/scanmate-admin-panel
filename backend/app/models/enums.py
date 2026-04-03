@@ -26,7 +26,7 @@ class InventorizationStatus(str, Enum):
     draft = 'draft'
     waiting_to_start = 'waiting_to_start'
     in_progress = 'in_progress'
-    scanning_completed = 'completed'
+    scanning_completed = 'scanning_completed'
     recount_requested = 'recount_requested'
     recount_in_progress = 'recount_in_progress'
     recount_completed = 'recount_completed'
@@ -37,7 +37,7 @@ class ReceiveStatus(str, Enum):
     draft = 'draft'
     waiting_to_start = 'waiting_to_start'
     in_progress = 'in_progress'
-    scanning_completed = 'completed'
+    scanning_completed = 'scanning_completed'
     recount_requested = 'recount_requested'
     recount_in_progress = 'recount_in_progress'
     recount_completed = 'recount_completed'
@@ -81,7 +81,7 @@ class AssignmentRole(str, Enum):
 class AssignmentStatus(str, Enum):
     waiting_to_start = "waiting_to_start"
     in_progress = "in_progress"
-    completed = "completed"
+    scanning_completed = "scanning_completed"
     recount_requested = "recount_requested"
     recount_in_progress = "recount_in_progress"
     recount_completed = "recount_completed"

@@ -16,7 +16,8 @@ class ReceiveCreate(BaseModel):
 
 
 class ReceiveStatusUpdate(BaseModel):
-    status: ReceiveStatus
+    prev_status: str
+    new_status: str
 
 
 class ReceiveRead(ORMModel):

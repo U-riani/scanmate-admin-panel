@@ -4,7 +4,10 @@ import { useReceives } from "../../queries/receiveQuery";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
 import { useReceiveLines } from "../../queries/receiveLinesQuery";
-import { useReceiveStatusMutation, useCreateRecount } from "../../queries/receiveMutation";
+import {
+  useReceiveStatusMutation,
+  useCreateRecount,
+} from "../../queries/receiveMutation";
 // import { useTransferLines } from "../../queries/transferLinesQuery";
 
 // import { useCreateRecount } from "../../queries/receiveRecountMutation";
@@ -16,6 +19,11 @@ import {
   TEMPLATES,
 } from "../../utils/excel/downloadTemplate";
 import ImportReceiveExcelModal from "../../components/receive/ImportReceiveExcelModal";
+import StatusBarComponent from "../../components/reusable/StatusBarComponent";
+import {
+  ReceiveStatus,
+  uploadAllowedStatuses,
+} from "../../constants/statusData";
 
 export default function ReceiveDetail() {
   const { id } = useParams();
@@ -30,7 +38,7 @@ export default function ReceiveDetail() {
   const doc = docs.find((d) => String(d.id) === id);
   const { data: lines = [] } = useReceiveLines(doc?.id);
   const statusMutation = useReceiveStatusMutation();
-  console.log(doc)
+  console.log(doc);
 
   if (!doc)
     return (
@@ -43,7 +51,7 @@ export default function ReceiveDetail() {
     );
 
   const warehouse = warehouses.find((w) => w.id === doc.warehouse_id);
-  
+
   const employees = doc.receiver_user_ids
     .map((eid) => pocketUsers.find((u) => u.id === eid))
     .filter(Boolean);
@@ -131,51 +139,61 @@ export default function ReceiveDetail() {
             {doc.name}
           </p>
         </div>
-        {doc?.status === "draft" && (
-          <div className="flex gap-2 flex-wrap">
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() =>
-                downloadTemplate(
-                  TEMPLATES.receiveLines.headers,
-                  TEMPLATES.receiveLines.filename,
-                )
-              }
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Download Template
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setImportOpen(true)}
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Import Excel
-            </button>
+        <div className="flex flex-col items-end justify-between gap-3">
+          <div>
+            <StatusBarComponent
+              documentId={doc.id}
+              statusObject={ReceiveStatus}
+              currentStatus={doc.status}
+              module="receive"
+            />
           </div>
-        )}
+          {uploadAllowedStatuses.includes(doc.status) && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() =>
+                  downloadTemplate(
+                    TEMPLATES.receiveLines.headers,
+                    TEMPLATES.receiveLines.filename,
+                  )
+                }
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Download Template
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setImportOpen(true)}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Import Excel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Info card */}

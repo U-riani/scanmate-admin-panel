@@ -1,7 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "../app/queryKeys";
 // import { importReceiveLines } from "../api/receiveLinesService";
-import { createReceive, importReceiveLines, updateReceiveStatus, createRecountDocument } from "../api/receiveService";
+import {
+  createReceive,
+  importReceiveLines,
+  updateReceiveStatus,
+  createRecountDocument,
+} from "../api/receiveService";
 
 export function useCreateReceive() {
   const queryClient = useQueryClient();
@@ -31,7 +36,8 @@ export function useReceiveStatusMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }) => updateReceiveStatus(id, status),
+    mutationFn: ({ id, prevStatus, nextStatus }) =>
+      updateReceiveStatus(id, prevStatus, nextStatus),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.receives });
     },

@@ -1,7 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
 from app.schemas.common import ORMModel
-from app.models.enums import DocumentModule, ScanType
+from app.models.enums import DocumentModule, ScanType, TransferStatus
 
 
 class TransferCreate(BaseModel):
@@ -17,7 +17,8 @@ class TransferCreate(BaseModel):
 
 
 class TransferStatusUpdate(BaseModel):
-    status: str
+    prev_status: str
+    new_status: str
 
 
 class TransferSignRequest(BaseModel):
@@ -32,7 +33,7 @@ class TransferRead(ORMModel):
     to_warehouse_id: int
     module: DocumentModule
     scan_type: ScanType
-    status: str
+    status: TransferStatus
     sender_user_ids: list[int] = []
     receiver_user_ids: list[int] = []
     sender_finished_at: datetime | None = None

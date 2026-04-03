@@ -8,8 +8,8 @@ export function createTransfer(data) {
   return apiClient.post("/transfers", data);
 }
 
-export function updateTransferStatus(id, status) {
-  return apiClient.patch(`/transfers/${id}/status`, { status });
+export function updateTransferStatus(id, prevStatus, nextStatus) {
+  return apiClient.patch(`/transfers/${id}/status`, { prev_status: prevStatus, new_status: nextStatus });
 }
 
 export function signTransfer(id, userId) {

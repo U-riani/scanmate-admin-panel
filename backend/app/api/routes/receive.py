@@ -44,10 +44,10 @@ def create_receive(payload: ReceiveCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{receive_id}/status", response_model=ReceiveRead)
 def update_status(receive_id: int, payload: ReceiveStatusUpdate, db: Session = Depends(get_db)):
-
+    print("update status", receive_id, payload)
     obj = get_or_404(db, Receive, receive_id, "Receive not found")
 
-    obj.status = payload.status
+    obj.status = payload.new_status
 
     db.add(obj)
     db.commit()

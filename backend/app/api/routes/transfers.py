@@ -47,12 +47,7 @@ def create_transfer(payload: TransferCreate, db: Session = Depends(get_db)):
 def update_status(transfer_id: int, payload: TransferStatusUpdate, db: Session = Depends(get_db)):
 
     obj = get_or_404(db, Transfer, transfer_id, "Transfer not found")
-
-    obj.status = payload.status
-
-    if payload.status == TransferStatus.closed:
-        obj.is_locked = True
-        obj.closed_at = datetime.now(timezone.utc)
+    obj.status = payload.new_status
 
     db.add(obj)
     db.commit()
