@@ -1,9 +1,11 @@
+# backend/app/api/routes/inventorization.py
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.enums import InventorizationStatus, DocumentModule, ScanType
+from app.models.enums import InventorizationStatus, DocumentModule, ScanType, AssignmentRole
 from app.models.models import Inventorization, InventorizationLine, WarehouseProduct, PocketUser
 from app.schemas.inventorizations import (
     ImportRowsRequest,
@@ -16,6 +18,7 @@ from app.schemas.inventorizations import (
     RecountCreateRequest,
     RecountCreateResponse,
 )
+from app.services.document_assignments import create_document_assignments_for_document
 from app.api.deps import get_current_pocket_user
 from app.services.utils import get_or_404
 
@@ -31,12 +34,21 @@ def list_docs(db: Session = Depends(get_db)):
 
 @router.post("", response_model=InventorizationCreate)
 def create_doc(payload: InventorizationCreate, db: Session = Depends(get_db)):
-    print("---", payload)
     obj = Inventorization(
         **payload.model_dump(),
         status=InventorizationStatus.draft,
     )
     db.add(obj)
+    db.flush()
+
+    create_document_assignments_for_document(
+        db=db,
+        module=DocumentModule.inventorization,
+        document_id=obj.id,
+        user_ids=payload.employees or [],
+        role=AssignmentRole.worker,
+    )
+
     db.commit()
     db.refresh(obj)
     return obj
@@ -175,13 +187,19 @@ def create_recount(payload: RecountCreateRequest, db: Session = Depends(get_db))
     )
 
     db.add(doc)
-    db.commit()
-    db.refresh(doc)
+    db.flush()
+
+    create_document_assignments_for_document(
+        db=db,
+        module=DocumentModule.inventorization,
+        document_id=doc.id,
+        user_ids=payload.employees or [],
+        role=AssignmentRole.worker,
+    )
 
     created = []
 
     for item in payload.items:
-
         line = InventorizationLine(
             document_id=doc.id,
             barcode=item.barcode,
@@ -197,6 +215,7 @@ def create_recount(payload: RecountCreateRequest, db: Session = Depends(get_db))
         created.append(line)
 
     db.commit()
+    db.refresh(doc)
 
     for line in created:
         db.refresh(line)

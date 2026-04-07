@@ -1,10 +1,12 @@
+# backend/app/api/routes/receive.py
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.db.session import get_db
 from app.models.models import Receive, ReceiveLine
-from app.models.enums import ReceiveStatus
+from app.models.enums import ReceiveStatus, DocumentModule, AssignmentRole
 from app.schemas.receives import (
     ReceiveCreate,
     ReceiveRead,
@@ -15,6 +17,7 @@ from app.schemas.receives import (
     ImportRowsResponse
 )
 
+from app.services.document_assignments import create_document_assignments_for_document
 from app.services.utils import get_or_404
 
 router = APIRouter()
@@ -29,16 +32,23 @@ def list_receives(db: Session = Depends(get_db)):
 
 @router.post("", response_model=ReceiveRead)
 def create_receive(payload: ReceiveCreate, db: Session = Depends(get_db)):
-
     obj = Receive(
         **payload.model_dump(),
         status=ReceiveStatus.draft,
     )
-
     db.add(obj)
+    db.flush()
+
+    create_document_assignments_for_document(
+        db=db,
+        module=DocumentModule.receive,
+        document_id=obj.id,
+        user_ids=payload.receiver_user_ids or [],
+        role=AssignmentRole.worker,
+    )
+
     db.commit()
     db.refresh(obj)
-
     return obj
 
 

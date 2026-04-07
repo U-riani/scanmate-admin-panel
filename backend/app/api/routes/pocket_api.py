@@ -7,9 +7,26 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.enums import DocumentModule, InventorizationStatus, ReceiveStatus, TransferStatus, AssignmentStatus, AssignmentRole
-from app.models.models import Inventorization, InventorizationLine, WarehouseProduct, Warehouse, PocketUser, Transfer, Receive, DocumentAssignment
-
-from app.schemas.pocketApiSchema import PocketDocument, PocketDocumentLine, PocketStatusChangeRequest
+from app.models.models import (
+    Inventorization,
+    InventorizationLine,
+    WarehouseProduct,
+    Warehouse,
+    PocketUser,
+    Transfer,
+    TransferLine,
+    Receive,
+    ReceiveLine,
+    DocumentAssignment,
+)
+from app.schemas.pocketApiSchema import (
+    PocketDocument,
+    PocketDocumentLine,
+    PocketStatusChangeRequest,
+    PocketSubmitLinesRequest,
+    PocketSubmitLinesResponse,
+    PocketFinishScanningRequest
+)
 from app.schemas.inventorizations import (
     ImportRowsRequest,
     ImportRowsResponse,
@@ -48,31 +65,116 @@ ALLOWED_POCKET_STATUSES_TRANSFER_RECEIVER = [
     "receive_recount_in_progress",
 ]
 
+def _get_current_assignment(
+    db: Session,
+    module: str,
+    document_id: int,
+    current_user_id: int,
+    role: AssignmentRole,
+) -> DocumentAssignment | None:
+    return db.scalar(
+        select(DocumentAssignment).where(
+            DocumentAssignment.document_module == module,
+            DocumentAssignment.document_id == document_id,
+            DocumentAssignment.pocket_user_id == current_user_id,
+            DocumentAssignment.role == role,
+        )
+    )
 
-def _get_next_assignment_status_on_load_data(module: str, document_status: str, role: str | None = None) -> str | None:
+def _find_line_by_row(lines, row):
+    if row.line_id is not None:
+        for line in lines:
+            if line.id == row.line_id:
+                return line
+
+    # fallback
+    if row.box_id:
+        for line in lines:
+            if line.barcode == row.barcode and (line.box_id or "") == row.box_id:
+                return line
+
+    for line in lines:
+        if line.barcode == row.barcode:
+            return line
+
+    return None
+
+def _apply_worker_row(line, quantity: int, current_user_id: int, is_recount: bool):
+    if is_recount:
+        line.recount_qty = quantity
+    else:
+        line.counted_qty = quantity
+        if hasattr(line, "employee_id"):
+            line.employee_id = current_user_id
+        if hasattr(line, "receiver_user_id"):
+            line.receiver_user_id = current_user_id
+
+def _apply_transfer_row(
+    line,
+    quantity: int,
+    role: AssignmentRole,
+    is_recount: bool,
+):
+    if is_recount:
+        line.recounted_qty = quantity
+        return
+
+    if role == AssignmentRole.sender:
+        line.sent_qty = quantity
+    elif role == AssignmentRole.receiver:
+        line.received_qty = quantity
+
+def _get_next_assignment_status_on_finish_scanning(
+    module: str,
+    assignment_status: str,
+    role: str | None = None,
+) -> str | None:
     if module in ("inventorization", "receive"):
-        if document_status == "waiting_to_start":
+        if assignment_status == "in_progress":
+            return "scanning_completed"
+        if assignment_status == "recount_in_progress":
+            return "recount_completed"
+        return None
+
+    if module == "transfer":
+        if role in ("sender", "receiver"):
+            if assignment_status == "in_progress":
+                return "completed"
+            if assignment_status == "recount_in_progress":
+                return "recount_completed"
+        return None
+
+    return None
+
+def _get_next_assignment_status_on_load_data(
+    module: str,
+    assignment_status: str,
+    role: str | None = None,
+) -> str | None:
+    if module in ("inventorization", "receive"):
+        if assignment_status == "waiting_to_start":
             return "in_progress"
-        if document_status == "recount_requested":
+        if assignment_status == "recount_requested":
             return "recount_in_progress"
         return None
 
     if module == "transfer":
         if role == "sender":
-            if document_status == "waiting_to_start":
+            if assignment_status == "waiting_to_start":
                 return "in_progress"
-            if document_status == "sender_recount_requested":
+            if assignment_status == "recount_requested":
                 return "recount_in_progress"
             return None
 
         if role == "receiver":
-            if document_status == "sender_recount_completed":
+            if assignment_status == "waiting_to_start":
                 return "in_progress"
-            if document_status == "receive_recount_requested":
+            if assignment_status == "recount_requested":
                 return "recount_in_progress"
             return None
 
     return None
+
 
 def _get_assignment_role_for_user(module: str, doc, current_user_id: int, requested_role: str | None) -> AssignmentRole:
     if module in ("inventorization", "receive"):
@@ -351,6 +453,7 @@ def _get_user_document_status(
 
     return None
 
+
 # send all docs data(not lines)
 @router.get("/documents", response_model=list[PocketDocument])
 def pocket_documents(
@@ -522,8 +625,9 @@ def document_status_change(
     if not assignment:
         return {"ok": False, "message": "Assignment not found for current user"}
 
-    current_assignment_status = assignment.status.value if hasattr(assignment.status, "value") else str(
-        assignment.status)
+    current_assignment_status = (
+        assignment.status.value if hasattr(assignment.status, "value") else str(assignment.status)
+    )
 
     if payload.current_status != current_assignment_status:
         return {
@@ -531,12 +635,16 @@ def document_status_change(
             "message": f"Status mismatch. Client sent '{payload.current_status}', but server has assignment status '{current_assignment_status}'"
         }
 
-    next_status = _get_next_assignment_status_on_load_data(module, current_assignment_status, role.value if hasattr(role, "value") else str(role))
+    next_status = _get_next_assignment_status_on_load_data(
+        module,
+        current_assignment_status,
+        role.value if hasattr(role, "value") else str(role),
+    )
 
     if not next_status:
         return {
             "ok": False,
-            "message": f"Load data is not allowed for current status '{current_assignment_status}'"
+            "message": f"Load data is not allowed for current assignment status '{current_assignment_status}'"
         }
 
     assignment.status = AssignmentStatus(next_status)
@@ -560,7 +668,7 @@ def document_status_change(
         "document_id": document_id,
         "module": module,
         "assignment_id": assignment.id,
-        "previous_document_status": current_assignment_status,
+        "previous_assignment_status": current_assignment_status,
         "assignment_status": assignment.status.value,
         "document_status": new_document_status.value if hasattr(new_document_status, "value") else str(new_document_status),
         "user_id": current_user.id,
@@ -600,3 +708,205 @@ def list_lines(doc_id: int, module: str, db: Session = Depends(get_db)):
 
     return lines
 
+@router.post(
+    "/document/{document_id}/{module}/submit-lines",
+    response_model=PocketSubmitLinesResponse,
+)
+def submit_lines(
+    document_id: int,
+    module: str,
+    payload: PocketSubmitLinesRequest,
+    current_user: PocketUser = Depends(get_current_pocket_user),
+    db: Session = Depends(get_db),
+):
+    # 1. Load document
+    if module == "inventorization":
+        doc = get_or_404(db, Inventorization, document_id)
+        lines = db.scalars(
+            select(InventorizationLine).where(InventorizationLine.document_id == document_id)
+        ).all()
+    elif module == "receive":
+        doc = get_or_404(db, Receive, document_id)
+        lines = db.scalars(
+            select(ReceiveLine).where(ReceiveLine.document_id == document_id)
+        ).all()
+    elif module == "transfer":
+        doc = get_or_404(db, Transfer, document_id)
+        lines = db.scalars(
+            select(TransferLine).where(TransferLine.document_id == document_id)
+        ).all()
+    else:
+        return {
+            "ok": False,
+            "document_id": document_id,
+            "module": module,
+            "processed_rows": 0,
+            "updated_lines": 0,
+            "assignment_status": "",
+        }
+
+    # 2. Resolve role / assignment
+    try:
+        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role)
+    except ValueError as e:
+        return {
+            "ok": False,
+            "document_id": document_id,
+            "module": module,
+            "processed_rows": 0,
+            "updated_lines": 0,
+            "assignment_status": str(e),
+        }
+
+    assignment = _get_current_assignment(db, module, document_id, current_user.id, role)
+    if not assignment:
+        return {
+            "ok": False,
+            "document_id": document_id,
+            "module": module,
+            "role": role.value,
+            "processed_rows": 0,
+            "updated_lines": 0,
+            "assignment_status": "assignment_not_found",
+        }
+
+    current_assignment_status = assignment.status.value
+
+    if payload.current_status != current_assignment_status:
+        return {
+            "ok": False,
+            "document_id": document_id,
+            "module": module,
+            "role": role.value,
+            "processed_rows": 0,
+            "updated_lines": 0,
+            "assignment_status": current_assignment_status,
+        }
+
+    # 3. Decide normal scan vs recount
+    is_recount = current_assignment_status == "recount_in_progress"
+
+    processed_rows = 0
+    updated_lines = 0
+
+    for row in payload.rows:
+        processed_rows += 1
+
+        line = _find_line_by_row(lines, row)
+        if not line:
+            continue
+
+        if module in ("inventorization", "receive"):
+            _apply_worker_row(
+                line=line,
+                quantity=row.quantity,
+                current_user_id=current_user.id,
+                is_recount=is_recount,
+            )
+        elif module == "transfer":
+            _apply_transfer_row(
+                line=line,
+                quantity=row.quantity,
+                role=role,
+                is_recount=is_recount,
+            )
+
+        db.add(line)
+        updated_lines += 1
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "module": module,
+        "role": role.value,
+        "processed_rows": processed_rows,
+        "updated_lines": updated_lines,
+        "assignment_status": current_assignment_status,
+    }
+
+@router.post("/document/{document_id}/{module}/finish-scanning")
+def finish_scanning(
+    document_id: int,
+    module: str,
+    payload: PocketFinishScanningRequest,
+    current_user: PocketUser = Depends(get_current_pocket_user),
+    db: Session = Depends(get_db),
+):
+    if module == "inventorization":
+        doc = get_or_404(db, Inventorization, document_id)
+    elif module == "receive":
+        doc = get_or_404(db, Receive, document_id)
+    elif module == "transfer":
+        doc = get_or_404(db, Transfer, document_id)
+    else:
+        return {"ok": False, "message": f"Unsupported module: {module}"}
+
+    try:
+        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role)
+    except ValueError as e:
+        return {"ok": False, "message": str(e)}
+
+    assignment = db.scalar(
+        select(DocumentAssignment).where(
+            DocumentAssignment.document_module == module,
+            DocumentAssignment.document_id == document_id,
+            DocumentAssignment.pocket_user_id == current_user.id,
+            DocumentAssignment.role == role,
+        )
+    )
+
+    if not assignment:
+        return {"ok": False, "message": "Assignment not found for current user"}
+
+    current_assignment_status = (
+        assignment.status.value if hasattr(assignment.status, "value") else str(assignment.status)
+    )
+
+    if payload.current_status != current_assignment_status:
+        return {
+            "ok": False,
+            "message": f"Status mismatch. Client sent '{payload.current_status}', but server has assignment status '{current_assignment_status}'"
+        }
+
+    next_status = _get_next_assignment_status_on_finish_scanning(
+        module,
+        current_assignment_status,
+        role.value if hasattr(role, "value") else str(role),
+    )
+
+    if not next_status:
+        return {
+            "ok": False,
+            "message": f"Finish scanning is not allowed for current assignment status '{current_assignment_status}'"
+        }
+
+    assignment.status = AssignmentStatus(next_status)
+
+    now = datetime.utcnow()
+
+    if assignment.status == AssignmentStatus.scanning_completed:
+        assignment.completed_at = assignment.completed_at or now
+    elif assignment.status == AssignmentStatus.completed:
+        assignment.completed_at = assignment.completed_at or now
+    elif assignment.status == AssignmentStatus.recount_completed:
+        assignment.recount_completed_at = assignment.recount_completed_at or now
+
+    db.add(assignment)
+    db.commit()
+    db.refresh(assignment)
+
+    new_document_status = recalc_document_status(db, module, document_id)
+
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "module": module,
+        "assignment_id": assignment.id,
+        "previous_assignment_status": current_assignment_status,
+        "assignment_status": assignment.status.value,
+        "document_status": new_document_status.value if hasattr(new_document_status, "value") else str(new_document_status),
+        "user_id": current_user.id,
+        "role": role.value if hasattr(role, "value") else str(role),
+    }

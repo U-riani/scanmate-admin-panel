@@ -1,3 +1,5 @@
+# backend/app/api/routes/transfers.py
+
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -17,6 +19,7 @@ from app.schemas.transfers import (
     ImportRowsResponse
 )
 from app.services.transfers import recalc_transfer_stats
+from app.services.document_assignments import create_transfer_assignments
 from app.services.utils import get_or_404
 
 router = APIRouter()
@@ -29,17 +32,23 @@ def list_transfers(db: Session = Depends(get_db)):
 
 @router.post("", response_model=TransferRead)
 def create_transfer(payload: TransferCreate, db: Session = Depends(get_db)):
-
     obj = Transfer(
         **payload.model_dump(),
         status=TransferStatus.draft,
         signature_status=SignatureStatus.pending,
     )
-
     db.add(obj)
+    db.flush()
+
+    create_transfer_assignments(
+        db=db,
+        document_id=obj.id,
+        sender_user_ids=payload.sender_user_ids or [],
+        receiver_user_ids=payload.receiver_user_ids or [],
+    )
+
     db.commit()
     db.refresh(obj)
-
     return obj
 
 
