@@ -85,3 +85,4 @@ class AssignmentStatus(str, Enum):
     recount_requested = "recount_requested"
     recount_in_progress = "recount_in_progress"
     recount_completed = "recount_completed"
+    completed = "completed"

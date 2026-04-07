@@ -54,5 +54,5 @@ class PocketDocumentLine(BaseModel):
         from_attributes = True
 
 class PocketStatusChangeRequest(BaseModel):
-    status: str
+    current_status: str
     role: str | None = None

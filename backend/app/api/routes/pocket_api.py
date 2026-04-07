@@ -26,6 +26,54 @@ from app.services.utils import get_or_404
 
 router = APIRouter()
 
+ALLOWED_POCKET_STATUSES_INVENTORIZATION_RECEIVE = [
+    "waiting_to_start",
+    "in_progress",
+    "recount_requested",
+    "recount_in_progress",
+]
+
+ALLOWED_POCKET_STATUSES_TRANSFER_SENDER = [
+    "waiting_to_start",
+    "sender_in_progress",
+    "sender_recount_requested",
+    "sender_recount_in_progress",
+    "sender_recount_completed",
+]
+
+ALLOWED_POCKET_STATUSES_TRANSFER_RECEIVER = [
+    "sender_recount_completed",
+    "receive_in_progress",
+    "receive_recount_requested",
+    "receive_recount_in_progress",
+]
+
+
+def _get_next_assignment_status_on_load_data(module: str, document_status: str, role: str | None = None) -> str | None:
+    if module in ("inventorization", "receive"):
+        if document_status == "waiting_to_start":
+            return "in_progress"
+        if document_status == "recount_requested":
+            return "recount_in_progress"
+        return None
+
+    if module == "transfer":
+        if role == "sender":
+            if document_status == "waiting_to_start":
+                return "in_progress"
+            if document_status == "sender_recount_requested":
+                return "recount_in_progress"
+            return None
+
+        if role == "receiver":
+            if document_status == "sender_recount_completed":
+                return "in_progress"
+            if document_status == "receive_recount_requested":
+                return "recount_in_progress"
+            return None
+
+    return None
+
 def _get_assignment_role_for_user(module: str, doc, current_user_id: int, requested_role: str | None) -> AssignmentRole:
     if module in ("inventorization", "receive"):
         return AssignmentRole.worker
@@ -78,11 +126,17 @@ def recalc_document_status(db: Session, module: str, document_id: int):
         if all(s == AssignmentStatus.waiting_to_start for s in statuses):
             new_status = "waiting_to_start"
 
-        elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in statuses):
-            # everyone has at least started scanning
-            if all(s == AssignmentStatus.completed for s in statuses):
-                new_status = "completed"
+
+        elif all(
+                s in (AssignmentStatus.in_progress, AssignmentStatus.scanning_completed, AssignmentStatus.completed) for
+                s in statuses):
+
+            if all(s in (AssignmentStatus.scanning_completed, AssignmentStatus.completed) for s in statuses):
+
+                new_status = "scanning_completed"
+
             else:
+
                 new_status = "in_progress"
 
         elif all(s == AssignmentStatus.recount_requested for s in statuses):
@@ -317,8 +371,13 @@ def pocket_documents(
     for doc in inventorization_docs:
         print('-inven', current_user.id)
         print('-inven',doc.employees)
+        print('inv - check: ', doc.id, current_user.id, doc.status)
         if current_user.id in (doc.employees or []):
-            print(doc.status)
+            user_status = _get_user_document_status(db, "inventorization", doc.id, current_user)
+
+            if not user_status or user_status not in ALLOWED_POCKET_STATUSES_INVENTORIZATION_RECEIVE:
+                continue
+
             result.append({
                 "id": doc.id,
                 "name": doc.name,
@@ -327,7 +386,7 @@ def pocket_documents(
                 "doc_module": "inventorization",
                 "scan_type": doc.scan_type,
                 "parent_document_id": doc.parent_document_id,
-                "status": _get_user_document_status(db, "inventorization", doc.id, current_user) or doc.status,
+                "status": user_status,
                 "description": doc.description,
                 "employees": doc.employees,
                 "created_at": doc.created_at,
@@ -345,33 +404,54 @@ def pocket_documents(
     ).all()
 
     for doc in transfer_docs:
-        if current_user.id in (doc.sender_user_ids or []) or current_user.id in (doc.receiver_user_ids or []):
-            from_wh = db.get(Warehouse, doc.from_warehouse_id)
-            to_wh = db.get(Warehouse, doc.to_warehouse_id)
+        is_sender = current_user.id in (doc.sender_user_ids or [])
+        is_receiver = current_user.id in (doc.receiver_user_ids or [])
 
-            result.append({
-                "id": doc.id,
-                "name": doc.name,
-                "doc_module": "transfer",
-                "scan_type": doc.scan_type,
-                "status": _get_user_document_status(db, "transfer", doc.id, current_user) or doc.status,
+        if not is_sender and not is_receiver:
+            continue
 
-                "from_warehouse_id": doc.from_warehouse_id,
-                "from_warehouse_name": from_wh.name if from_wh else None,
+        user_status = _get_user_document_status(db, "transfer", doc.id, current_user)
 
-                "to_warehouse_id": doc.to_warehouse_id,
-                "to_warehouse_name": to_wh.name if to_wh else None,
+        if not user_status:
+            continue
 
-                "warehouse_id": None,
-                "warehouse_name": None,
+        allowed = False
 
-                "parent_document_id": None,
-                "description": doc.description,
-                "employees": None,
+        if is_sender and user_status in ALLOWED_POCKET_STATUSES_TRANSFER_SENDER:
+            allowed = True
 
-                "created_at": doc.created_at,
-                "updated_at": doc.updated_at
-            })
+        if is_receiver and user_status in ALLOWED_POCKET_STATUSES_TRANSFER_RECEIVER:
+            allowed = True
+
+        if not allowed:
+            continue
+
+        from_wh = db.get(Warehouse, doc.from_warehouse_id)
+        to_wh = db.get(Warehouse, doc.to_warehouse_id)
+
+        result.append({
+            "id": doc.id,
+            "name": doc.name,
+            "doc_module": "transfer",
+            "scan_type": doc.scan_type,
+            "status": user_status,
+
+            "from_warehouse_id": doc.from_warehouse_id,
+            "from_warehouse_name": from_wh.name if from_wh else None,
+
+            "to_warehouse_id": doc.to_warehouse_id,
+            "to_warehouse_name": to_wh.name if to_wh else None,
+
+            "warehouse_id": None,
+            "warehouse_name": None,
+
+            "parent_document_id": None,
+            "description": doc.description,
+            "employees": None,
+
+            "created_at": doc.created_at,
+            "updated_at": doc.updated_at
+        })
 
     # RECEIVES
     receive_docs = db.scalars(
@@ -384,7 +464,11 @@ def pocket_documents(
         print('-receiv',current_user.id)
         print('-receiv',doc.receiver_user_ids)
         if current_user.id in (doc.receiver_user_ids or []):
-            print("receiv status", doc.status)
+            user_status = _get_user_document_status(db, "receive", doc.id, current_user)
+
+            if not user_status or user_status not in ALLOWED_POCKET_STATUSES_INVENTORIZATION_RECEIVE:
+                continue
+
             wh = db.get(Warehouse, doc.warehouse_id)
 
             result.append({
@@ -395,7 +479,7 @@ def pocket_documents(
                 "doc_module": "receive",
                 "scan_type": doc.scan_type,
                 "parent_document_id": doc.parent_document_id,
-                "status": _get_user_document_status(db, "receive", doc.id, current_user) or doc.status,
+                "status": user_status,
                 "description": doc.description,
                 "employees": doc.receiver_user_ids,
                 "created_at": doc.created_at,
@@ -438,20 +522,32 @@ def document_status_change(
     if not assignment:
         return {"ok": False, "message": "Assignment not found for current user"}
 
-    assignment.status = AssignmentStatus(payload.status)
+    current_assignment_status = assignment.status.value if hasattr(assignment.status, "value") else str(
+        assignment.status)
+
+    if payload.current_status != current_assignment_status:
+        return {
+            "ok": False,
+            "message": f"Status mismatch. Client sent '{payload.current_status}', but server has assignment status '{current_assignment_status}'"
+        }
+
+    next_status = _get_next_assignment_status_on_load_data(module, current_assignment_status, role.value if hasattr(role, "value") else str(role))
+
+    if not next_status:
+        return {
+            "ok": False,
+            "message": f"Load data is not allowed for current status '{current_assignment_status}'"
+        }
+
+    assignment.status = AssignmentStatus(next_status)
 
     now = datetime.utcnow()
-    if payload.status == AssignmentStatus.in_progress:
+    if assignment.status == AssignmentStatus.in_progress:
         assignment.loaded_at = assignment.loaded_at or now
         assignment.started_at = assignment.started_at or now
-    elif payload.status == AssignmentStatus.completed:
-        assignment.completed_at = now
-    elif payload.status == AssignmentStatus.recount_requested:
-        assignment.recount_requested_at = now
-    elif payload.status == AssignmentStatus.recount_in_progress:
-        assignment.recount_started_at = now
-    elif payload.status == AssignmentStatus.recount_completed:
-        assignment.recount_completed_at = now
+    elif assignment.status == AssignmentStatus.recount_in_progress:
+        assignment.loaded_at = assignment.loaded_at or now
+        assignment.recount_started_at = assignment.recount_started_at or now
 
     db.add(assignment)
     db.commit()
@@ -464,10 +560,11 @@ def document_status_change(
         "document_id": document_id,
         "module": module,
         "assignment_id": assignment.id,
-        "assignment_status": assignment.status,
-        "document_status": new_document_status,
+        "previous_document_status": current_assignment_status,
+        "assignment_status": assignment.status.value,
+        "document_status": new_document_status.value if hasattr(new_document_status, "value") else str(new_document_status),
         "user_id": current_user.id,
-        "role": assignment.role,
+        "role": role.value if hasattr(role, "value") else str(role),
     }
 
 @router.get("/{doc_id}/lines", response_model=list[PocketDocumentLine])
