@@ -1,3 +1,4 @@
+// frontend\src\app\queryKeys.js
 export const QUERY_KEYS = {
   inventorizations: ["inventorizations"],
   inventorizationLines: (documentId) => ["inventorizationLines", documentId],

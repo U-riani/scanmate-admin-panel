@@ -1,3 +1,5 @@
+#backend/app/db/seed.py
+
 from datetime import datetime, timezone
 from sqlalchemy import select, text
 
@@ -50,6 +52,7 @@ _SEEDED_TABLES = [
     "price_uploads",
     "price_rows",
     "document_assignments",
+    "document_line_user_results",
 ]
 
 
@@ -60,7 +63,8 @@ def _reset_sequences(db):
                 f"""
                 SELECT setval(
                     pg_get_serial_sequence('{table}', 'id'),
-                    COALESCE((SELECT MAX(id) FROM {table}), 0)
+                    COALESCE((SELECT MAX(id) FROM {table}), 1),
+                    (SELECT COUNT(*) > 0 FROM {table})
                 )
                 """
             )
@@ -289,6 +293,9 @@ def seed_database():
                 size="xl",
                 price=15.95,
                 expected_qty=5,
+                base_sent_qty=5,
+                base_received_qty=0,
+                base_recounted_qty=0,
                 sent_qty=5,
                 received_qty=0,
                 difference_qty=-5,
@@ -305,6 +312,9 @@ def seed_database():
                 size="L",
                 price=67.95,
                 expected_qty=3,
+                base_sent_qty=3,
+                base_received_qty=0,
+                base_recounted_qty=0,
                 sent_qty=0,
                 received_qty=0,
                 difference_qty=0,
@@ -338,6 +348,8 @@ def seed_database():
                 size="xl",
                 price=15.95,
                 expected_qty=15,
+                base_counted_qty=14,
+                base_recount_qty=0,
                 counted_qty=14,
                 employee_id=1,
                 recount_requested=False
@@ -352,6 +364,8 @@ def seed_database():
                 size="L",
                 price=67.95,
                 expected_qty=9,
+                base_counted_qty=9,
+                base_recount_qty=0,
                 counted_qty=9,
                 employee_id=2,
             ),
@@ -393,6 +407,8 @@ def seed_database():
                 size="XL",
                 price=15.95,
                 expected_qty=5,
+                base_counted_qty=5,
+                base_recount_qty=0,
                 counted_qty=5,
                 difference_qty=0,
                 recount_requested=False,
@@ -408,6 +424,8 @@ def seed_database():
                 size="L",
                 price=67.95,
                 expected_qty=3,
+                base_counted_qty=2,
+                base_recount_qty=0,
                 counted_qty=2,
                 difference_qty=-1,
                 recount_requested=True,

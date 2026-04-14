@@ -72,6 +72,9 @@ def import_lines(doc_id: int, payload: list[dict], db: Session = Depends(get_db)
     created = []
 
     for row in payload:
+        sent_qty = int(row.get("Scanned_Quantity") or 0)
+        received_qty = int(row.get("Received_Quantity") or 0)
+        recounted_qty = int(row.get("Recounted_Quantity") or 0)
 
         line = TransferLine(
             document_id=doc_id,
@@ -82,6 +85,14 @@ def import_lines(doc_id: int, payload: list[dict], db: Session = Depends(get_db)
             size=row.get("Size"),
             price=float(row.get("Price") or 0),
             expected_qty=int(row.get("Initial_Quantity") or 0),
+
+            base_sent_qty=sent_qty,
+            base_received_qty=received_qty,
+            base_recounted_qty=recounted_qty,
+
+            sent_qty=sent_qty,
+            received_qty=received_qty,
+            recounted_qty=recounted_qty,
             box_id=row.get("Box_Id"),
         )
 

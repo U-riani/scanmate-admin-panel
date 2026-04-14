@@ -1,3 +1,4 @@
+// frontend\src\queries\receiveMutation.js
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "../app/queryKeys";
 // import { importReceiveLines } from "../api/receiveLinesService";
@@ -51,7 +52,7 @@ export function useCreateRecount() {
     mutationFn: createRecountDocument,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.receives });
-      queryClient.invalidateQueries({ queryKey: ["ReceiveLines"] });
+      queryClient.invalidateQueries({ queryKey: ["receiveLines"] });
     },
   });
 }

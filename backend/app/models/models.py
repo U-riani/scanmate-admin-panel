@@ -188,6 +188,11 @@ class TransferLine(Base):
     price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
 
     expected_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    base_sent_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    base_received_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    base_recounted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     sent_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     received_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -265,7 +270,11 @@ class Inventorization(Base):
         default=list,
         nullable=False,
     )
-
+    recount_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=datetime.utcnow,
@@ -298,6 +307,9 @@ class InventorizationLine(Base):
     price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
 
     expected_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    base_counted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    base_recount_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     counted_qty: Mapped[int | None] = mapped_column(Integer)
     recount_qty: Mapped[int | None] = mapped_column(Integer)
@@ -446,7 +458,11 @@ class Receive(Base):
         default=list,
         nullable=False,
     )
-
+    recount_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     created_by: Mapped[int | None] = mapped_column(
@@ -503,6 +519,9 @@ class ReceiveLine(Base):
     price: Mapped[float] = mapped_column(Float, default=0, nullable=False)
 
     expected_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    base_counted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    base_recount_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     counted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -586,6 +605,60 @@ class DocumentAssignment(Base):
     recount_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recount_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recount_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+class DocumentLineUserResult(Base):
+    __tablename__ = "document_line_user_results"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_module",
+            "document_id",
+            "line_id",
+            "pocket_user_id",
+            "role",
+            name="uq_doc_line_user_result",
+        ),
+        Index("ix_doc_line_user_results_lookup", "document_module", "document_id", "line_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    document_module: Mapped[DocumentModule] = mapped_column(
+        Enum(DocumentModule),
+        nullable=False,
+        index=True,
+    )
+
+    document_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+    line_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+    pocket_user_id: Mapped[int] = mapped_column(
+        ForeignKey("pocket_users.id"),
+        nullable=False,
+        index=True,
+    )
+
+    role: Mapped[AssignmentRole] = mapped_column(
+        Enum(AssignmentRole),
+        default=AssignmentRole.worker,
+        nullable=False,
+    )
+
+    quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    recount_quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

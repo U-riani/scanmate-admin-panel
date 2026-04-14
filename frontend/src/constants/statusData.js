@@ -104,3 +104,10 @@ export const uploadAllowedStatuses = [
   "receive_completed",
   "scanning_completed",
 ];
+
+export const InventorizationReceiveShowRecountQuantity = [
+  "recount_requested",
+  "recount_completed",
+  "confirmed",
+  "closed"
+];

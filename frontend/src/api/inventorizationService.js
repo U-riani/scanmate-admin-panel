@@ -1,3 +1,4 @@
+// frontend\src\api\inventorizationService.js
 import { apiClient } from "./apiClient";
 
 export function getInventorizations() {

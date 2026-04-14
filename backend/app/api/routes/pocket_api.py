@@ -18,6 +18,7 @@ from app.models.models import (
     Receive,
     ReceiveLine,
     DocumentAssignment,
+    DocumentLineUserResult
 )
 from app.schemas.pocketApiSchema import (
     PocketDocument,
@@ -99,30 +100,58 @@ def _find_line_by_row(lines, row):
 
     return None
 
-def _apply_worker_row(line, quantity: int, current_user_id: int, is_recount: bool):
-    if is_recount:
-        line.recount_qty = quantity
+def _recalc_worker_line_totals(db: Session, module: str, document_id: int):
+    if module == "inventorization":
+        lines = db.scalars(
+            select(InventorizationLine).where(InventorizationLine.document_id == document_id)
+        ).all()
     else:
-        line.counted_qty = quantity
-        if hasattr(line, "employee_id"):
-            line.employee_id = current_user_id
-        if hasattr(line, "receiver_user_id"):
-            line.receiver_user_id = current_user_id
+        lines = db.scalars(
+            select(ReceiveLine).where(ReceiveLine.document_id == document_id)
+        ).all()
 
-def _apply_transfer_row(
-    line,
-    quantity: int,
-    role: AssignmentRole,
-    is_recount: bool,
-):
-    if is_recount:
-        line.recounted_qty = quantity
-        return
+    for line in lines:
+        results = db.scalars(
+            select(DocumentLineUserResult).where(
+                DocumentLineUserResult.document_module == DocumentModule(module),
+                DocumentLineUserResult.document_id == document_id,
+                DocumentLineUserResult.line_id == line.id,
+                DocumentLineUserResult.role == AssignmentRole.worker,
+            )
+        ).all()
 
-    if role == AssignmentRole.sender:
-        line.sent_qty = quantity
-    elif role == AssignmentRole.receiver:
-        line.received_qty = quantity
+        line.counted_qty = (line.base_counted_qty or 0) + sum(r.quantity for r in results)
+        line.recount_qty = (line.base_recount_qty or 0) + sum(r.recount_quantity for r in results)
+
+        db.add(line)
+
+
+def _recalc_transfer_line_totals(db: Session, document_id: int):
+    lines = db.scalars(
+        select(TransferLine).where(TransferLine.document_id == document_id)
+    ).all()
+
+    for line in lines:
+        results = db.scalars(
+            select(DocumentLineUserResult).where(
+                DocumentLineUserResult.document_module == DocumentModule.transfer,
+                DocumentLineUserResult.document_id == document_id,
+                DocumentLineUserResult.line_id == line.id,
+            )
+        ).all()
+
+        line.sent_qty = (line.base_sent_qty or 0) + sum(
+            r.quantity for r in results if r.role == AssignmentRole.sender
+        )
+        line.received_qty = (line.base_received_qty or 0) + sum(
+            r.quantity for r in results if r.role == AssignmentRole.receiver
+        )
+        line.recounted_qty = (line.base_recounted_qty or 0) + sum(
+            r.recount_quantity for r in results
+        )
+
+        db.add(line)
+
 
 def _get_next_assignment_status_on_finish_scanning(
     module: str,
@@ -209,6 +238,59 @@ def _get_assignment_role_for_user(module: str, doc, current_user_id: int, reques
         return role
 
     raise ValueError("Unsupported module")
+
+def _upsert_user_line_result(
+    db: Session,
+    module: str,
+    document_id: int,
+    line_id: int,
+    pocket_user_id: int,
+    role: AssignmentRole,
+    quantity: int,
+    is_recount: bool,
+):
+    result = db.scalar(
+        select(DocumentLineUserResult).where(
+            DocumentLineUserResult.document_module == DocumentModule(module),
+            DocumentLineUserResult.document_id == document_id,
+            DocumentLineUserResult.line_id == line_id,
+            DocumentLineUserResult.pocket_user_id == pocket_user_id,
+            DocumentLineUserResult.role == role,
+        )
+    )
+
+    if not result:
+        result = DocumentLineUserResult(
+            document_module=DocumentModule(module),
+            document_id=document_id,
+            line_id=line_id,
+            pocket_user_id=pocket_user_id,
+            role=role,
+        )
+
+    if is_recount:
+        result.recount_quantity = quantity
+    else:
+        result.quantity = quantity
+
+    db.add(result)
+
+def _get_base_quantity_for_line(module: str, line, role: AssignmentRole, is_recount: bool) -> int:
+    if module in ("inventorization", "receive"):
+        return (line.base_recount_qty or 0) if is_recount else (line.base_counted_qty or 0)
+
+    if module == "transfer":
+        if is_recount:
+            return line.base_recounted_qty or 0
+
+        if role == AssignmentRole.sender:
+            return line.base_sent_qty or 0
+
+        if role == AssignmentRole.receiver:
+            return line.base_received_qty or 0
+
+    return 0
+
 
 def recalc_document_status(db: Session, module: str, document_id: int):
     assignments = db.scalars(
@@ -478,9 +560,11 @@ def pocket_documents(
         if current_user.id in (doc.employees or []):
             user_status = _get_user_document_status(db, "inventorization", doc.id, current_user)
 
+            print('inv -- sent1')
+            print('inv -- user_status', user_status)
             if not user_status or user_status not in ALLOWED_POCKET_STATUSES_INVENTORIZATION_RECEIVE:
                 continue
-
+            print('inv -- sent2')
             result.append({
                 "id": doc.id,
                 "name": doc.name,
@@ -676,17 +760,102 @@ def document_status_change(
     }
 
 @router.get("/{doc_id}/lines", response_model=list[PocketDocumentLine])
-def list_lines(doc_id: int, module: str, db: Session = Depends(get_db)):
-
+def list_lines(
+    doc_id: int,
+    module: str,
+    role: str | None = None,
+    current_user: PocketUser = Depends(get_current_pocket_user),
+    db: Session = Depends(get_db),
+):
     if module == "inventorization":
+        assignment = db.scalar(
+            select(DocumentAssignment).where(
+                DocumentAssignment.document_module == DocumentModule.inventorization,
+                DocumentAssignment.document_id == doc_id,
+                DocumentAssignment.pocket_user_id == current_user.id,
+                DocumentAssignment.role == AssignmentRole.worker,
+            )
+        )
+
+        query = select(InventorizationLine).where(
+            InventorizationLine.document_id == doc_id
+        )
+
+        if assignment and assignment.status in (
+                AssignmentStatus.recount_requested,
+                AssignmentStatus.recount_in_progress,
+                AssignmentStatus.recount_completed,
+        ):
+            query = query.where(InventorizationLine.recount_requested == True)
+
         lines = db.scalars(
-            select(InventorizationLine)
-            .where(InventorizationLine.document_id == doc_id)
-            .order_by(InventorizationLine.id)
+            query.order_by(InventorizationLine.id)
         ).all()
 
+        return [
+            PocketDocumentLine(
+                id=line.id,
+                document_id=line.document_id,
+                barcode=line.barcode,
+                article_code=line.article_code,
+                product_name=line.product_name,
+                color=line.color,
+                size=line.size,
+                price=line.price,
+                box_id=line.box_id,
+                expected_qty=line.expected_qty,
+                counted_qty=line.base_recount_qty if line.recount_requested else line.base_counted_qty,
+                employee_id=current_user.id,
+            )
+            for line in lines
+        ]
+
+    elif module == "receive":
+        assignment = db.scalar(
+            select(DocumentAssignment).where(
+                DocumentAssignment.document_module == DocumentModule.receive,
+                DocumentAssignment.document_id == doc_id,
+                DocumentAssignment.pocket_user_id == current_user.id,
+                DocumentAssignment.role == AssignmentRole.worker,
+            )
+        )
+
+        query = select(ReceiveLine).where(
+            ReceiveLine.document_id == doc_id
+        )
+
+        if assignment and assignment.status in (
+                AssignmentStatus.recount_requested,
+                AssignmentStatus.recount_in_progress,
+                AssignmentStatus.recount_completed,
+        ):
+            query = query.where(ReceiveLine.recount_requested == True)
+
+        lines = db.scalars(
+            query.order_by(ReceiveLine.id)
+        ).all()
+
+        return [
+            PocketDocumentLine(
+                id=line.id,
+                document_id=line.document_id,
+                barcode=line.barcode,
+                article_code=line.article_code,
+                product_name=line.product_name,
+                color=line.color,
+                size=line.size,
+                price=line.price,
+                box_id=line.box_id,
+                expected_qty=line.expected_qty,
+                counted_qty=line.base_recount_qty if line.recount_requested else line.base_counted_qty,
+                employee_id=current_user.id,
+            )
+            for line in lines
+        ]
+
     elif module == "transfer":
-        from app.models.models import TransferLine
+        doc = get_or_404(db, Transfer, doc_id)
+        resolved_role = _get_assignment_role_for_user(module, doc, current_user.id, role)
 
         lines = db.scalars(
             select(TransferLine)
@@ -694,19 +863,25 @@ def list_lines(doc_id: int, module: str, db: Session = Depends(get_db)):
             .order_by(TransferLine.id)
         ).all()
 
-    elif module == "receive":
-        from app.models.models import ReceiveLine
+        return [
+            PocketDocumentLine(
+                id=line.id,
+                document_id=line.document_id,
+                barcode=line.barcode,
+                article_code=line.article_code,
+                product_name=line.product_name,
+                color=line.color,
+                size=line.size,
+                price=line.price,
+                box_id=line.box_id,
+                expected_qty=line.expected_qty,
+                counted_qty=line.base_sent_qty if resolved_role == AssignmentRole.sender else line.base_received_qty,
+                employee_id=current_user.id,
+            )
+            for line in lines
+        ]
 
-        lines = db.scalars(
-            select(ReceiveLine)
-            .where(ReceiveLine.document_id == doc_id)
-            .order_by(ReceiveLine.id)
-        ).all()
-
-    else:
-        return []
-
-    return lines
+    return []
 
 @router.post(
     "/document/{document_id}/{module}/submit-lines",
@@ -796,23 +971,28 @@ def submit_lines(
         if not line:
             continue
 
-        if module in ("inventorization", "receive"):
-            _apply_worker_row(
-                line=line,
-                quantity=row.quantity,
-                current_user_id=current_user.id,
-                is_recount=is_recount,
-            )
-        elif module == "transfer":
-            _apply_transfer_row(
-                line=line,
-                quantity=row.quantity,
-                role=role,
-                is_recount=is_recount,
-            )
+        base_qty = _get_base_quantity_for_line(module, line, role, is_recount)
+        user_contribution = max((row.quantity or 0) - base_qty, 0)
 
-        db.add(line)
+        _upsert_user_line_result(
+            db=db,
+            module=module,
+            document_id=document_id,
+            line_id=line.id,
+            pocket_user_id=current_user.id,
+            role=role,
+            quantity=user_contribution,
+            is_recount=is_recount,
+        )
+
         updated_lines += 1
+
+    db.flush()
+
+    if module in ("inventorization", "receive"):
+        _recalc_worker_line_totals(db, module, document_id)
+    elif module == "transfer":
+        _recalc_transfer_line_totals(db, document_id)
 
     db.commit()
 
