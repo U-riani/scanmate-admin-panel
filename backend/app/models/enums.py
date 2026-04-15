@@ -11,6 +11,7 @@ class TransferStatus(str, Enum):
     sender_recount_requested = 'sender_recount_requested'
     sender_recount_in_progress = 'sender_recount_in_progress'
     sender_recount_completed = 'sender_recount_completed'
+    waiting_receiver_to_start = 'waiting_receiver_to_start'
     receive_in_progress = 'receive_in_progress'
     receive_completed = 'receive_completed'
     receive_recount_requested = 'receive_recount_requested'

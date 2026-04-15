@@ -21,6 +21,7 @@ export default function CreateTransferModal({ open, onClose }) {
     receiver_user_ids: [],
   });
 
+  console.log('warehouses', currentWarehouseId);
   if (!open) return null;
 
   const senderUsers = form.from_warehouse_id
@@ -143,7 +144,7 @@ export default function CreateTransferModal({ open, onClose }) {
             <p>
               Sender users (Warehouse:
               {warehouses.find((w) => w.id === form.from_warehouse_id)?.name})
-            </p>{" "}
+            </p>
             <div className="space-y-1">
               {senderUsers.map((u) => {
                 const checked = form.sender_user_ids.includes(u.id);

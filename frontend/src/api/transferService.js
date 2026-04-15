@@ -1,3 +1,4 @@
+// frontend\src\api\transferService.js
 import { apiClient } from "./apiClient";
 
 export function getTransfers() {
@@ -9,9 +10,16 @@ export function createTransfer(data) {
 }
 
 export function updateTransferStatus(id, prevStatus, nextStatus) {
-  return apiClient.patch(`/transfers/${id}/status`, { prev_status: prevStatus, new_status: nextStatus });
+  return apiClient.patch(`/transfers/${id}/status`, {
+    prev_status: prevStatus,
+    new_status: nextStatus,
+  });
 }
 
 export function signTransfer(id, userId) {
   return apiClient.patch(`/transfers/${id}/sign`, { user_id: userId });
+}
+
+export function createTransferRecount(payload) {
+  return apiClient.post("/transfers/recount", payload);
 }

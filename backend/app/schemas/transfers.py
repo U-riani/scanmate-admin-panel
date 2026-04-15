@@ -38,6 +38,8 @@ class TransferRead(ORMModel):
     status: TransferStatus
     sender_user_ids: list[int] = []
     receiver_user_ids: list[int] = []
+    sender_recount_user_ids: list[int] = []
+    receiver_recount_user_ids: list[int] = []
     sender_finished_at: datetime | None = None
     receiver_finished_at: datetime | None = None
     signature_status: str
@@ -80,8 +82,16 @@ class TransferLineRead(ORMModel):
     article_code: str | None = None
     product_name: str | None = None
     expected_qty: int
+
     sent_qty: int
     received_qty: int
+
+    sender_recounted_qty: int
+    receiver_recounted_qty: int
+
+    sender_recount_requested: bool
+    receiver_recount_requested: bool
+
     difference_qty: int
     sender_user_id: int | None = None
     receiver_user_id: int | None = None
@@ -89,7 +99,18 @@ class TransferLineRead(ORMModel):
     receiver_scanned_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
-
+    box_id: str | None = None
 
 class ImportRowsResponse(BaseModel):
     imported: int
+
+class TransferRecountCreateRequest(BaseModel):
+    parent_document_id: int
+    role: str   # "sender" or "receiver"
+    employees: list[int] = []
+    line_ids: list[int]
+
+
+class TransferRecountCreateResponse(BaseModel):
+    document: TransferRead
+    lines: list[TransferLineRead]

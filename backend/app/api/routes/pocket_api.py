@@ -53,14 +53,13 @@ ALLOWED_POCKET_STATUSES_INVENTORIZATION_RECEIVE = [
 
 ALLOWED_POCKET_STATUSES_TRANSFER_SENDER = [
     "waiting_to_start",
-    "sender_in_progress",
-    "sender_recount_requested",
-    "sender_recount_in_progress",
-    "sender_recount_completed",
+    "in_progress",
+    "recount_requested",
+    "recount_in_progress",
 ]
 
 ALLOWED_POCKET_STATUSES_TRANSFER_RECEIVER = [
-    "sender_recount_completed",
+    "waiting_receiver_to_start",
     "receive_in_progress",
     "receive_recount_requested",
     "receive_recount_in_progress",
@@ -146,8 +145,12 @@ def _recalc_transfer_line_totals(db: Session, document_id: int):
         line.received_qty = (line.base_received_qty or 0) + sum(
             r.quantity for r in results if r.role == AssignmentRole.receiver
         )
-        line.recounted_qty = (line.base_recounted_qty or 0) + sum(
-            r.recount_quantity for r in results
+
+        line.sender_recounted_qty = (line.base_sender_recount_qty or 0) + sum(
+            r.recount_quantity for r in results if r.role == AssignmentRole.sender
+        )
+        line.receiver_recounted_qty = (line.base_receiver_recount_qty or 0) + sum(
+            r.recount_quantity for r in results if r.role == AssignmentRole.receiver
         )
 
         db.add(line)
@@ -205,7 +208,13 @@ def _get_next_assignment_status_on_load_data(
     return None
 
 
-def _get_assignment_role_for_user(module: str, doc, current_user_id: int, requested_role: str | None) -> AssignmentRole:
+def _get_assignment_role_for_user(
+    module: str,
+    doc,
+    current_user_id: int,
+    requested_role: str | None,
+    db: Session | None = None,
+) -> AssignmentRole:
     if module in ("inventorization", "receive"):
         return AssignmentRole.worker
 
@@ -225,6 +234,47 @@ def _get_assignment_role_for_user(module: str, doc, current_user_id: int, reques
             return allowed_roles[0]
 
         if not requested_role:
+            if db is not None:
+                sender_assignment = db.scalar(
+                    select(DocumentAssignment).where(
+                        DocumentAssignment.document_module == DocumentModule.transfer,
+                        DocumentAssignment.document_id == doc.id,
+                        DocumentAssignment.pocket_user_id == current_user_id,
+                        DocumentAssignment.role == AssignmentRole.sender,
+                    )
+                )
+
+                receiver_assignment = db.scalar(
+                    select(DocumentAssignment).where(
+                        DocumentAssignment.document_module == DocumentModule.transfer,
+                        DocumentAssignment.document_id == doc.id,
+                        DocumentAssignment.pocket_user_id == current_user_id,
+                        DocumentAssignment.role == AssignmentRole.receiver,
+                    )
+                )
+
+                sender_status = (
+                    sender_assignment.status.value
+                    if sender_assignment and hasattr(sender_assignment.status, "value")
+                    else (str(sender_assignment.status) if sender_assignment else None)
+                )
+                receiver_status = (
+                    receiver_assignment.status.value
+                    if receiver_assignment and hasattr(receiver_assignment.status, "value")
+                    else (str(receiver_assignment.status) if receiver_assignment else None)
+                )
+
+                if sender_status in ("waiting_to_start", "in_progress", "recount_requested", "recount_in_progress"):
+                    return AssignmentRole.sender
+
+                if receiver_status in ("waiting_to_start", "in_progress", "recount_requested", "recount_in_progress"):
+                    if sender_status in ("completed", "recount_completed"):
+                        return AssignmentRole.receiver
+
+            inferred_role = _infer_transfer_role_from_status(doc)
+            if inferred_role and inferred_role in allowed_roles:
+                return inferred_role
+
             raise ValueError("Role is required for users assigned as both sender and receiver")
 
         try:
@@ -281,7 +331,10 @@ def _get_base_quantity_for_line(module: str, line, role: AssignmentRole, is_reco
 
     if module == "transfer":
         if is_recount:
-            return line.base_recounted_qty or 0
+            if role == AssignmentRole.sender:
+                return line.base_sender_recount_qty or 0
+            if role == AssignmentRole.receiver:
+                return line.base_receiver_recount_qty or 0
 
         if role == AssignmentRole.sender:
             return line.base_sent_qty or 0
@@ -363,7 +416,10 @@ def recalc_document_status(db: Session, module: str, document_id: int):
 
         # 1. Sender phase first
 
-        if sender_assignments and not all(s == AssignmentStatus.completed for s in sender_statuses):
+        if sender_assignments and not all(
+                s in (AssignmentStatus.completed, AssignmentStatus.recount_completed)
+                for s in sender_statuses
+        ):
 
             if all(s == AssignmentStatus.waiting_to_start for s in sender_statuses):
 
@@ -421,16 +477,23 @@ def recalc_document_status(db: Session, module: str, document_id: int):
 
         # 2. Sender phase finished, now evaluate receiver phase
 
-        elif sender_assignments and all(s == AssignmentStatus.completed for s in sender_statuses):
+        elif sender_assignments and all(
+
+                s in (AssignmentStatus.completed, AssignmentStatus.recount_completed)
+
+                for s in sender_statuses
+
+        ):
 
             if not receiver_assignments:
 
                 obj.status = TransferStatus.sender_completed
 
 
+
             elif all(s == AssignmentStatus.waiting_to_start for s in receiver_statuses):
 
-                obj.status = TransferStatus.sender_completed
+                obj.status = TransferStatus.waiting_receiver_to_start
 
 
             elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in receiver_statuses):
@@ -524,14 +587,57 @@ def _get_user_document_status(
             )
         )
 
-        if sender_assignment and sender_assignment.status != AssignmentStatus.completed:
+        # sender phase is active until sender fully finishes normal or recount flow
+        if sender_assignment and sender_assignment.status not in (
+                AssignmentStatus.completed,
+                AssignmentStatus.recount_completed,
+        ):
             return sender_assignment.status.value
 
+        # once sender side is fully done, receiver side becomes visible
         if receiver_assignment:
-            return receiver_assignment.status.value
+            receiver_status = receiver_assignment.status.value
+
+            if receiver_status == AssignmentStatus.waiting_to_start.value:
+                return "waiting_receiver_to_start"
+
+            return receiver_status
 
         if sender_assignment:
             return sender_assignment.status.value
+
+    return None
+
+def _normalize_client_status_for_assignment(module: str, current_status: str) -> str:
+    if module == "transfer" and current_status == "waiting_receiver_to_start":
+        return "waiting_to_start"
+    return current_status
+
+def _infer_transfer_role_from_status(doc) -> AssignmentRole | None:
+    status = doc.status.value if hasattr(doc.status, "value") else str(doc.status)
+
+    sender_statuses = {
+        "waiting_to_start",
+        "sender_in_progress",
+        "sender_recount_requested",
+        "sender_recount_in_progress",
+        "sender_recount_completed",
+    }
+
+    receiver_statuses = {
+        "waiting_receiver_to_start",
+        "receive_in_progress",
+        "receive_completed",
+        "receive_recount_requested",
+        "receive_recount_in_progress",
+        "receive_recount_completed",
+    }
+
+    if status in sender_statuses:
+        return AssignmentRole.sender
+
+    if status in receiver_statuses:
+        return AssignmentRole.receiver
 
     return None
 
@@ -693,7 +799,10 @@ def document_status_change(
         return {"ok": False, "message": f"Unsupported module: {module}"}
 
     try:
-        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role)
+        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role, db=db)
+        print("TRANSFER ROLE RESOLVED:", role)
+        print("PAYLOAD CURRENT STATUS:", payload.current_status)
+        print("DOC STATUS:", doc.status)
     except ValueError as e:
         return {"ok": False, "message": str(e)}
 
@@ -705,7 +814,8 @@ def document_status_change(
             DocumentAssignment.role == role,
         )
     )
-
+    print("ASSIGNMENT FOUND:", assignment.id if assignment else None)
+    print("ASSIGNMENT STATUS:", assignment.status if assignment else None)
     if not assignment:
         return {"ok": False, "message": "Assignment not found for current user"}
 
@@ -713,10 +823,14 @@ def document_status_change(
         assignment.status.value if hasattr(assignment.status, "value") else str(assignment.status)
     )
 
-    if payload.current_status != current_assignment_status:
+    normalized_client_status = _normalize_client_status_for_assignment(
+        module, payload.current_status
+    )
+
+    if normalized_client_status != current_assignment_status:
         return {
             "ok": False,
-            "message": f"Status mismatch. Client sent '{payload.current_status}', but server has assignment status '{current_assignment_status}'"
+            "message": f"Status mismatch. Client sent '{payload.current_status}', normalized to '{normalized_client_status}', but server has assignment status '{current_assignment_status}'"
         }
 
     next_status = _get_next_assignment_status_on_load_data(
@@ -853,32 +967,93 @@ def list_lines(
             for line in lines
         ]
 
+
     elif module == "transfer":
+
         doc = get_or_404(db, Transfer, doc_id)
-        resolved_role = _get_assignment_role_for_user(module, doc, current_user.id, role)
+
+        resolved_role = _get_assignment_role_for_user(module, doc, current_user.id, role, db=db)
+
+        assignment = db.scalar(
+
+            select(DocumentAssignment).where(
+
+                DocumentAssignment.document_module == DocumentModule.transfer,
+
+                DocumentAssignment.document_id == doc_id,
+
+                DocumentAssignment.pocket_user_id == current_user.id,
+
+                DocumentAssignment.role == resolved_role,
+
+            )
+
+        )
+
+        query = select(TransferLine).where(
+
+            TransferLine.document_id == doc_id
+
+        )
+
+        if assignment and assignment.status in (
+                AssignmentStatus.recount_requested,
+                AssignmentStatus.recount_in_progress,
+                AssignmentStatus.recount_completed,
+        ):
+            if resolved_role == AssignmentRole.sender:
+                query = query.where(TransferLine.sender_recount_requested == True)
+            else:
+                query = query.where(TransferLine.receiver_recount_requested == True)
 
         lines = db.scalars(
-            select(TransferLine)
-            .where(TransferLine.document_id == doc_id)
-            .order_by(TransferLine.id)
+
+            query.order_by(TransferLine.id)
+
         ).all()
 
         return [
+
             PocketDocumentLine(
+
                 id=line.id,
+
                 document_id=line.document_id,
+
                 barcode=line.barcode,
+
                 article_code=line.article_code,
+
                 product_name=line.product_name,
+
                 color=line.color,
+
                 size=line.size,
+
                 price=line.price,
+
                 box_id=line.box_id,
+
                 expected_qty=line.expected_qty,
-                counted_qty=line.base_sent_qty if resolved_role == AssignmentRole.sender else line.base_received_qty,
+
+                counted_qty=(
+                    line.base_sender_recount_qty
+                    if resolved_role == AssignmentRole.sender and line.sender_recount_requested
+                    else (
+                        line.base_receiver_recount_qty
+                        if resolved_role == AssignmentRole.receiver and line.receiver_recount_requested
+                        else (
+                            line.base_sent_qty if resolved_role == AssignmentRole.sender else line.base_received_qty
+                        )
+                    )
+                ),
+
                 employee_id=current_user.id,
+
             )
+
             for line in lines
+
         ]
 
     return []
@@ -894,6 +1069,7 @@ def submit_lines(
     current_user: PocketUser = Depends(get_current_pocket_user),
     db: Session = Depends(get_db),
 ):
+    print("payload", payload)
     # 1. Load document
     if module == "inventorization":
         doc = get_or_404(db, Inventorization, document_id)
@@ -922,7 +1098,7 @@ def submit_lines(
 
     # 2. Resolve role / assignment
     try:
-        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role)
+        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role, db=db)
     except ValueError as e:
         return {
             "ok": False,
@@ -947,7 +1123,11 @@ def submit_lines(
 
     current_assignment_status = assignment.status.value
 
-    if payload.current_status != current_assignment_status:
+    normalized_client_status = _normalize_client_status_for_assignment(
+        module, payload.current_status
+    )
+
+    if normalized_client_status != current_assignment_status:
         return {
             "ok": False,
             "document_id": document_id,
@@ -1024,7 +1204,7 @@ def finish_scanning(
         return {"ok": False, "message": f"Unsupported module: {module}"}
 
     try:
-        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role)
+        role = _get_assignment_role_for_user(module, doc, current_user.id, payload.role, db=db)
     except ValueError as e:
         return {"ok": False, "message": str(e)}
 
@@ -1044,10 +1224,14 @@ def finish_scanning(
         assignment.status.value if hasattr(assignment.status, "value") else str(assignment.status)
     )
 
-    if payload.current_status != current_assignment_status:
+    normalized_client_status = _normalize_client_status_for_assignment(
+        module, payload.current_status
+    )
+
+    if normalized_client_status != current_assignment_status:
         return {
             "ok": False,
-            "message": f"Status mismatch. Client sent '{payload.current_status}', but server has assignment status '{current_assignment_status}'"
+            "message": f"Status mismatch. Client sent '{payload.current_status}', normalized to '{normalized_client_status}', but server has assignment status '{current_assignment_status}'"
         }
 
     next_status = _get_next_assignment_status_on_finish_scanning(

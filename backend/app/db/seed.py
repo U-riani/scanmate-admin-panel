@@ -269,6 +269,8 @@ def seed_database():
             status=TransferStatus.waiting_to_start,
             sender_user_ids=[1],
             receiver_user_ids=[1, 2],
+            sender_recount_user_ids=[],
+            receiver_recount_user_ids=[],
             signature_status=SignatureStatus.pending,
             description="desr dgf TBL to BAT",
             created_by=1,
@@ -295,11 +297,16 @@ def seed_database():
                 expected_qty=5,
                 base_sent_qty=5,
                 base_received_qty=0,
-                base_recounted_qty=0,
+
                 sent_qty=5,
                 received_qty=0,
                 difference_qty=-5,
-                recount_requested=False
+                base_sender_recount_qty=0,
+                base_receiver_recount_qty=0,
+                sender_recounted_qty=0,
+                receiver_recounted_qty=0,
+                sender_recount_requested=False,
+                receiver_recount_requested=False,
             ),
             TransferLine(
                 id=2,
@@ -314,10 +321,16 @@ def seed_database():
                 expected_qty=3,
                 base_sent_qty=3,
                 base_received_qty=0,
-                base_recounted_qty=0,
+
                 sent_qty=0,
                 received_qty=0,
                 difference_qty=0,
+                base_sender_recount_qty=0,
+                base_receiver_recount_qty=0,
+                sender_recounted_qty=0,
+                receiver_recounted_qty=0,
+                sender_recount_requested=False,
+                receiver_recount_requested=False,
             ),
         ]
         db.add_all(transfer_lines)
@@ -333,6 +346,7 @@ def seed_database():
             status=InventorizationStatus.waiting_to_start,
             description="Some description for Central Count inv",
             employees=[1, 2],
+            recount_user_ids=[],
         )
         db.add(inv)
         db.commit()
@@ -383,6 +397,7 @@ def seed_database():
             scan_type="barcode",
             status=ReceiveStatus.waiting_to_start,
             receiver_user_ids=[1, 2],
+            recount_user_ids=[],
             created_by=1,
             description="SOme description for TBILisi receive",
             employees=[1, 2],

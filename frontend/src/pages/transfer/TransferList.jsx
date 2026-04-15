@@ -180,7 +180,7 @@ export default function TransferList() {
                       Open →
                     </button>
                   </td>
-                </tr>
+                </tr> 
               ))
             )}
           </tbody>

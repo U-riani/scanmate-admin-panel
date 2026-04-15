@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTransfers } from "../../queries/transferQuery";
 import { useTransferLines } from "../../queries/transferLinesQuery";
 import { useTransferStatusMutation } from "../../queries/transferStatusMutation";
+import { useCreateTransferRecount } from "../../queries/transferRecountMutation";
 import {
   useAddTransferLines,
   useUpdateTransferLine,
@@ -28,6 +29,31 @@ import {
 } from "../../utils/excel/downloadTemplate";
 import { toast } from "react-hot-toast";
 
+function getTransferStage(status) {
+  const senderStages = [
+    "waiting_to_start",
+    "sender_in_progress",
+    "sender_completed",
+    "sender_recount_requested",
+    "sender_recount_in_progress",
+    "sender_recount_completed",
+  ];
+
+  const receiverStages = [
+    "waiting_receiver_to_start",
+    "receive_in_progress",
+    "receive_completed",
+    "receive_recount_requested",
+    "receive_recount_in_progress",
+    "receive_recount_completed",
+  ];
+
+  if (receiverStages.includes(status)) return "receiver";
+  if (senderStages.includes(status)) return "sender";
+
+  return "sender";
+}
+
 export default function TransferDetail() {
   const { id } = useParams();
   const { data: docs = [] } = useTransfers();
@@ -47,6 +73,12 @@ export default function TransferDetail() {
   const [excelModal, setExcelModal] = useState(false);
   const [warehouseSelector, setWarehouseSelector] = useState(false);
 
+  const [selectedLines, setSelectedLines] = useState([]);
+  const [selectedRecountEmployees, setSelectedRecountEmployees] = useState([]);
+  const [recountError, setRecountError] = useState("");
+
+  const recountMutation = useCreateTransferRecount();
+  console.log(lines);
   if (!doc)
     return (
       <div
@@ -56,6 +88,11 @@ export default function TransferDetail() {
         Transfer not found
       </div>
     );
+
+  const currentStage = getTransferStage(doc.status);
+  const recountCandidates =
+    currentStage === "sender" ? doc.sender_user_ids : doc.receiver_user_ids;
+  const recountUsers = users.filter((u) => recountCandidates.includes(u.id));
 
   function getWarehouseName(wid) {
     return warehouses.find((w) => w.id === wid)?.name ?? "—";
@@ -78,7 +115,13 @@ export default function TransferDetail() {
       <button
         key={next}
         className="btn btn-primary btn-sm"
-        onClick={() => statusMutation.mutate({ id: doc.id, status: next })}
+        onClick={() =>
+          statusMutation.mutate({
+            id: doc.id,
+            prevStatus: doc.status,
+            nextStatus: next,
+          })
+        }
       >
         → {next.replace(/_/g, " ")}
       </button>
@@ -112,7 +155,29 @@ export default function TransferDetail() {
       minute: "2-digit",
     });
   }
+  function createRecount() {
+    if (selectedRecountEmployees.length === 0) {
+      setRecountError("Please select at least 1 employee for recount.");
+      return;
+    }
 
+    if (selectedLines.length === 0) {
+      setRecountError("Please select at least 1 line for recount.");
+      return;
+    }
+
+    setRecountError("");
+
+    recountMutation.mutate({
+      parent_document_id: doc.id,
+      role: currentStage,
+      employees: selectedRecountEmployees,
+      line_ids: selectedLines,
+    });
+
+    setSelectedLines([]);
+    setSelectedRecountEmployees([]);
+  }
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -315,16 +380,72 @@ export default function TransferDetail() {
         >
           Transfer Lines
         </h2>
+        <div>
+          {["sender_completed", "receive_completed"].includes(doc.status) && (
+            <div className="glass-card p-4 mt-4">
+              <p className="section-label mb-3">
+                Recount performers (
+                {currentStage === "sender" ? "Sender side" : "Receiver side"})
+              </p>
+
+              <div className="flex gap-2 flex-wrap">
+                {recountUsers.map((u) => {
+                  const selected = selectedRecountEmployees.includes(u.id);
+
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedRecountEmployees((prev) =>
+                          prev.includes(u.id)
+                            ? prev.filter((id) => id !== u.id)
+                            : [...prev, u.id],
+                        )
+                      }
+                      className={`rounded-2xl px-3 py-1 text-sm border ${
+                        selected
+                          ? "bg-amber-700 border-amber-500 text-white"
+                          : "bg-transparent border-gray-500 text-gray-300"
+                      }`}
+                    >
+                      {u.username}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {recountError && (
+                <div className="rounded-xl border border-red-500 bg-red-950/40 px-4 py-2 text-sm text-red-200 mt-3">
+                  {recountError}
+                </div>
+              )}
+
+              {selectedLines.length > 0 && (
+                <button
+                  className="btn btn-warning btn-sm mt-3"
+                  onClick={createRecount}
+                  disabled={selectedRecountEmployees.length === 0}
+                >
+                  Create Recount ({selectedLines.length})
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <div className="glass-table-wrapper">
           <table className="glass-table">
             <thead>
               <tr>
+                <th></th>
                 <th>Barcode</th>
                 <th>Article</th>
                 <th>Product</th>
                 <th>Expected</th>
                 <th>Sent</th>
                 <th>Received</th>
+                <th>Snd_Recount_Qty</th>
+                <th>Rec_Recount_Qty</th>
                 <th>Diff</th>
                 <th></th>
               </tr>
@@ -346,8 +467,38 @@ export default function TransferDetail() {
               ) : (
                 lines.map((line) => {
                   const diff = line.sent_qty - line.received_qty;
+                  console.log("line", line);
                   return (
-                    <tr key={line.id}>
+                    <tr
+                      key={line.id}
+                      className={`
+                        ${
+                          line.sender_recount_requested &&
+                          line.receiver_recount_requested
+                            ? "bg-yellow-950"
+                            : line.sender_recount_requested
+                              ? "bg-amber-950"
+                              : line.receiver_recount_requested
+                                ? "bg-rose-950"
+                                : ""
+                        }
+                      `}
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedLines.includes(line.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedLines((prev) => [...prev, line.id]);
+                            } else {
+                              setSelectedLines((prev) =>
+                                prev.filter((id) => id !== line.id),
+                              );
+                            }
+                          }}
+                        />
+                      </td>
                       <td className="cell-mono">{line.barcode}</td>
                       <td className="cell-mono">{line.article_code}</td>
                       <td style={{ fontWeight: 500 }}>{line.product_name}</td>
@@ -388,6 +539,8 @@ export default function TransferDetail() {
                           }
                         />
                       </td>
+                      <td>{line.sender_recounted_qty}</td>
+                      <td>{line.receiver_recounted_qty}</td>
                       <td>
                         {diff === 0 ? (
                           <span className="diff-zero">0</span>

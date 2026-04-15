@@ -132,6 +132,18 @@ class Transfer(Base):
         nullable=False
     )
 
+    sender_recount_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
+    receiver_recount_user_ids: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
+
+
     sender_finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     receiver_finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -191,31 +203,26 @@ class TransferLine(Base):
 
     base_sent_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     base_received_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    base_recounted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    base_sender_recount_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    base_receiver_recount_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     sent_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     received_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    recounted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sender_recounted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    receiver_recounted_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     difference_qty: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    sender_user_ids: Mapped[list] = mapped_column(
-        JSON,
-        default=list,
-        nullable=False
-    )
-
-    receiver_user_ids: Mapped[list] = mapped_column(
-        JSON,
-        default=list,
-        nullable=False
-    )
+    sender_user_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    receiver_user_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
 
     sender_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     receiver_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    recount_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sender_recount_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    receiver_recount_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -225,7 +232,6 @@ class TransferLine(Base):
     )
 
     box_id: Mapped[str | None] = mapped_column(String(80), index=True)
-
 
 class Inventorization(Base):
     __tablename__ = "inventorizations"

@@ -1,13 +1,13 @@
 # backend/app/api/routes/transfers.py
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.enums import SignatureStatus, TransferStatus
-from app.models.models import Transfer, TransferLine
+from app.models.enums import DocumentModule,SignatureStatus, TransferStatus, AssignmentStatus, AssignmentRole
+from app.models.models import Transfer, TransferLine, DocumentAssignment
 from app.schemas.transfers import (
     TransferCreate,
     TransferLineCreate,
@@ -16,7 +16,9 @@ from app.schemas.transfers import (
     TransferRead,
     TransferSignRequest,
     TransferStatusUpdate,
-    ImportRowsResponse
+    ImportRowsResponse,
+    TransferRecountCreateRequest,
+    TransferRecountCreateResponse,
 )
 from app.services.transfers import recalc_transfer_stats
 from app.services.document_assignments import create_transfer_assignments
@@ -54,11 +56,92 @@ def create_transfer(payload: TransferCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{transfer_id}/status", response_model=TransferRead)
 def update_status(transfer_id: int, payload: TransferStatusUpdate, db: Session = Depends(get_db)):
-
     obj = get_or_404(db, Transfer, transfer_id, "Transfer not found")
-    obj.status = payload.new_status
+    print('payload', payload)
+    prev_status = (
+        obj.status.value if hasattr(obj.status, "value") else str(obj.status)
+    )
+    new_status = (
+        payload.new_status.value if hasattr(payload.new_status, "value") else str(payload.new_status)
+    )
 
+    obj.status = payload.new_status
     db.add(obj)
+
+    now = datetime.utcnow()
+
+    # sender recount
+    if (
+        prev_status == TransferStatus.sender_completed.value
+        and new_status == TransferStatus.sender_recount_requested.value
+    ):
+        recount_user_ids = set(obj.sender_recount_user_ids or obj.sender_user_ids or [])
+
+        assignments = db.scalars(
+            select(DocumentAssignment).where(
+                DocumentAssignment.document_module == DocumentModule.transfer,
+                DocumentAssignment.document_id == transfer_id,
+                DocumentAssignment.role == AssignmentRole.sender,
+            )
+        ).all()
+
+        for assignment in assignments:
+            if assignment.pocket_user_id in recount_user_ids:
+                if assignment.status in (
+                    AssignmentStatus.completed,
+                    AssignmentStatus.recount_completed,
+                ):
+                    assignment.status = AssignmentStatus.recount_requested
+                    assignment.recount_requested_at = now
+                    assignment.recount_started_at = None
+                    assignment.recount_completed_at = None
+                    db.add(assignment)
+            else:
+                if assignment.status in (
+                    AssignmentStatus.completed,
+                    AssignmentStatus.recount_requested,
+                    AssignmentStatus.recount_in_progress,
+                ):
+                    assignment.status = AssignmentStatus.recount_completed
+                    assignment.recount_completed_at = now
+                    db.add(assignment)
+
+    # receiver recount
+    if (
+        prev_status == TransferStatus.receive_completed.value
+        and new_status == TransferStatus.receive_recount_requested.value
+    ):
+        recount_user_ids = set(obj.receiver_recount_user_ids or obj.receiver_user_ids or [])
+
+        assignments = db.scalars(
+            select(DocumentAssignment).where(
+                DocumentAssignment.document_module == DocumentModule.transfer,
+                DocumentAssignment.document_id == transfer_id,
+                DocumentAssignment.role == AssignmentRole.receiver,
+            )
+        ).all()
+
+        for assignment in assignments:
+            if assignment.pocket_user_id in recount_user_ids:
+                if assignment.status in (
+                    AssignmentStatus.completed,
+                    AssignmentStatus.recount_completed,
+                ):
+                    assignment.status = AssignmentStatus.recount_requested
+                    assignment.recount_requested_at = now
+                    assignment.recount_started_at = None
+                    assignment.recount_completed_at = None
+                    db.add(assignment)
+            else:
+                if assignment.status in (
+                    AssignmentStatus.completed,
+                    AssignmentStatus.recount_requested,
+                    AssignmentStatus.recount_in_progress,
+                ):
+                    assignment.status = AssignmentStatus.recount_completed
+                    assignment.recount_completed_at = now
+                    db.add(assignment)
+
     db.commit()
     db.refresh(obj)
 
@@ -74,7 +157,8 @@ def import_lines(doc_id: int, payload: list[dict], db: Session = Depends(get_db)
     for row in payload:
         sent_qty = int(row.get("Scanned_Quantity") or 0)
         received_qty = int(row.get("Received_Quantity") or 0)
-        recounted_qty = int(row.get("Recounted_Quantity") or 0)
+        sender_recounted_qty = int(row.get("Sender_Recounted_Quantity") or 0)
+        receiver_recounted_qty = int(row.get("Receiver_Recounted_Quantity") or 0)
 
         line = TransferLine(
             document_id=doc_id,
@@ -86,13 +170,18 @@ def import_lines(doc_id: int, payload: list[dict], db: Session = Depends(get_db)
             price=float(row.get("Price") or 0),
             expected_qty=int(row.get("Initial_Quantity") or 0),
 
-            base_sent_qty=sent_qty,
-            base_received_qty=received_qty,
-            base_recounted_qty=recounted_qty,
+            base_sent_qty=int(row.get("Scanned_Quantity") or 0),
+            base_received_qty=int(row.get("Received_Quantity") or 0),
 
-            sent_qty=sent_qty,
-            received_qty=received_qty,
-            recounted_qty=recounted_qty,
+            base_sender_recount_qty=sender_recounted_qty,
+            base_receiver_recount_qty=receiver_recounted_qty,
+
+            sent_qty=int(row.get("Scanned_Quantity") or 0),
+            received_qty=int(row.get("Received_Quantity") or 0),
+
+            sender_recounted_qty=sender_recounted_qty,
+            receiver_recounted_qty=receiver_recounted_qty,
+
             box_id=row.get("Box_Id"),
         )
 
@@ -130,3 +219,67 @@ def sign_transfer(transfer_id: int, payload: TransferSignRequest, db: Session = 
     db.refresh(obj)
 
     return obj
+
+
+@router.post("/recount", response_model=TransferRecountCreateResponse)
+def create_recount(payload: TransferRecountCreateRequest, db: Session = Depends(get_db)):
+    doc = get_or_404(db, Transfer, payload.parent_document_id, "Transfer not found")
+
+    if payload.role not in ("sender", "receiver"):
+        raise HTTPException(status_code=400, detail="Role must be 'sender' or 'receiver'")
+
+    if not payload.employees:
+        raise HTTPException(status_code=400, detail="Select at least 1 employee for recount")
+
+    allowed_user_ids = set(
+        doc.sender_user_ids if payload.role == "sender" else doc.receiver_user_ids
+    )
+    selected_user_ids = list(dict.fromkeys(payload.employees))
+
+    invalid_user_ids = [uid for uid in selected_user_ids if uid not in allowed_user_ids]
+    if invalid_user_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid recount employees for role '{payload.role}': {invalid_user_ids}"
+        )
+
+    lines = db.scalars(
+        select(TransferLine).where(
+            TransferLine.document_id == payload.parent_document_id,
+            TransferLine.id.in_(payload.line_ids),
+        )
+    ).all()
+
+    if not lines:
+        return {
+            "document": doc,
+            "lines": []
+        }
+
+    if payload.role == "sender":
+        doc.sender_recount_user_ids = selected_user_ids
+    else:
+        doc.receiver_recount_user_ids = selected_user_ids
+
+    db.add(doc)
+
+    for line in lines:
+        if payload.role == "sender":
+            line.sender_recount_requested = True
+            line.sender_recounted_qty = 0
+        else:
+            line.receiver_recount_requested = True
+            line.receiver_recounted_qty = 0
+
+        db.add(line)
+
+    db.commit()
+    db.refresh(doc)
+
+    for line in lines:
+        db.refresh(line)
+
+    return {
+        "document": doc,
+        "lines": lines
+    }
