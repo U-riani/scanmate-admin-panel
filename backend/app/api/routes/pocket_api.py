@@ -402,6 +402,7 @@ def recalc_document_status(db: Session, module: str, document_id: int):
             obj.status = ReceiveStatus(new_status)
 
 
+
     elif module == "transfer":
 
         sender_assignments = [a for a in assignments if a.role == AssignmentRole.sender]
@@ -414,81 +415,45 @@ def recalc_document_status(db: Session, module: str, document_id: int):
 
         receiver_statuses = [a.status for a in receiver_assignments]
 
-        # 1. Sender phase first
+        sender_phase_statuses = {
 
-        if sender_assignments and not all(
-                s in (AssignmentStatus.completed, AssignmentStatus.recount_completed)
-                for s in sender_statuses
-        ):
+            TransferStatus.waiting_to_start,
 
-            if all(s == AssignmentStatus.waiting_to_start for s in sender_statuses):
+            TransferStatus.sender_in_progress,
 
-                obj.status = TransferStatus.waiting_to_start
+            TransferStatus.sender_completed,
 
+            TransferStatus.sender_recount_requested,
 
-            elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in sender_statuses):
+            TransferStatus.sender_recount_in_progress,
 
-                if all(s == AssignmentStatus.completed for s in sender_statuses):
+            TransferStatus.sender_recount_completed,
 
-                    obj.status = TransferStatus.sender_completed
+        }
 
-                else:
+        receiver_phase_statuses = {
 
-                    obj.status = TransferStatus.sender_in_progress
+            TransferStatus.waiting_receiver_to_start,
 
+            TransferStatus.receive_in_progress,
 
-            elif all(s == AssignmentStatus.recount_requested for s in sender_statuses):
+            TransferStatus.receive_completed,
 
-                obj.status = TransferStatus.sender_recount_requested
+            TransferStatus.receive_recount_requested,
 
+            TransferStatus.receive_recount_in_progress,
 
-            elif all(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in
-                     sender_statuses):
+            TransferStatus.receive_recount_completed,
 
-                if all(s == AssignmentStatus.recount_completed for s in sender_statuses):
+        }
 
-                    obj.status = TransferStatus.sender_recount_completed
+        # If document is already moved to receiver phase by admin, only recalc receiver side
 
-                else:
-
-                    obj.status = TransferStatus.sender_recount_in_progress
-
-
-            else:
-
-                # mixed sender stage, not all reached next shared step yet
-
-                if any(s in (
-
-                        AssignmentStatus.recount_requested,
-
-                        AssignmentStatus.recount_in_progress,
-
-                        AssignmentStatus.recount_completed,
-
-                ) for s in sender_statuses):
-
-                    obj.status = TransferStatus.sender_recount_requested
-
-                else:
-
-                    obj.status = TransferStatus.waiting_to_start
-
-
-        # 2. Sender phase finished, now evaluate receiver phase
-
-        elif sender_assignments and all(
-
-                s in (AssignmentStatus.completed, AssignmentStatus.recount_completed)
-
-                for s in sender_statuses
-
-        ):
+        if obj.status in receiver_phase_statuses:
 
             if not receiver_assignments:
 
-                obj.status = TransferStatus.sender_completed
-
+                obj.status = TransferStatus.waiting_receiver_to_start
 
 
             elif all(s == AssignmentStatus.waiting_to_start for s in receiver_statuses):
@@ -526,19 +491,110 @@ def recalc_document_status(db: Session, module: str, document_id: int):
 
             else:
 
-                # mixed receiver stage, not all reached next shared step yet
+                if any(
 
-                if any(s in (
+                        s in (
 
-                        AssignmentStatus.recount_requested,
+                                AssignmentStatus.recount_requested,
 
-                        AssignmentStatus.recount_in_progress,
+                                AssignmentStatus.recount_in_progress,
 
-                        AssignmentStatus.recount_completed,
+                                AssignmentStatus.recount_completed,
 
-                ) for s in receiver_statuses):
+                        )
+
+                        for s in receiver_statuses
+
+                ):
 
                     obj.status = TransferStatus.receive_recount_requested
+
+                else:
+
+                    obj.status = TransferStatus.waiting_receiver_to_start
+
+
+        # Otherwise recalc sender side only
+
+        else:
+
+            if sender_assignments and not all(
+
+                    s in (AssignmentStatus.completed, AssignmentStatus.recount_completed)
+
+                    for s in sender_statuses
+
+            ):
+
+                if all(s == AssignmentStatus.waiting_to_start for s in sender_statuses):
+
+                    obj.status = TransferStatus.waiting_to_start
+
+
+                elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in sender_statuses):
+
+                    if all(s == AssignmentStatus.completed for s in sender_statuses):
+
+                        obj.status = TransferStatus.sender_completed
+
+                    else:
+
+                        obj.status = TransferStatus.sender_in_progress
+
+
+                elif all(s == AssignmentStatus.recount_requested for s in sender_statuses):
+
+                    obj.status = TransferStatus.sender_recount_requested
+
+
+                elif all(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in
+                         sender_statuses):
+
+                    if all(s == AssignmentStatus.recount_completed for s in sender_statuses):
+
+                        obj.status = TransferStatus.sender_recount_completed
+
+                    else:
+
+                        obj.status = TransferStatus.sender_recount_in_progress
+
+
+                else:
+
+                    if any(
+
+                            s in (
+
+                                    AssignmentStatus.recount_requested,
+
+                                    AssignmentStatus.recount_in_progress,
+
+                                    AssignmentStatus.recount_completed,
+
+                            )
+
+                            for s in sender_statuses
+
+                    ):
+
+                        obj.status = TransferStatus.sender_recount_requested
+
+                    else:
+
+                        obj.status = TransferStatus.waiting_to_start
+
+
+            elif sender_assignments and all(
+
+                    s in (AssignmentStatus.completed, AssignmentStatus.recount_completed)
+
+                    for s in sender_statuses
+
+            ):
+
+                if all(s == AssignmentStatus.recount_completed for s in sender_statuses):
+
+                    obj.status = TransferStatus.sender_recount_completed
 
                 else:
 
@@ -569,6 +625,8 @@ def _get_user_document_status(
         return assignment.status.value if assignment else None
 
     if module == "transfer":
+        doc = get_or_404(db, Transfer, document_id)
+
         sender_assignment = db.scalar(
             select(DocumentAssignment).where(
                 DocumentAssignment.document_module == module_enum,
@@ -587,14 +645,24 @@ def _get_user_document_status(
             )
         )
 
-        # sender phase is active until sender fully finishes normal or recount flow
-        if sender_assignment and sender_assignment.status not in (
-                AssignmentStatus.completed,
-                AssignmentStatus.recount_completed,
-        ):
-            return sender_assignment.status.value
+        doc_status = doc.status.value if hasattr(doc.status, "value") else str(doc.status)
 
-        # once sender side is fully done, receiver side becomes visible
+        receiver_phase_statuses = {
+            "waiting_receiver_to_start",
+            "receive_in_progress",
+            "receive_completed",
+            "receive_recount_requested",
+            "receive_recount_in_progress",
+            "receive_recount_completed",
+        }
+
+        # If main transfer is NOT in receiver phase yet, never expose receiver side
+        if doc_status not in receiver_phase_statuses:
+            if sender_assignment:
+                return sender_assignment.status.value
+            return None
+
+        # Main transfer already reached receiver phase, now receiver side may be shown
         if receiver_assignment:
             receiver_status = receiver_assignment.status.value
 
@@ -605,6 +673,8 @@ def _get_user_document_status(
 
         if sender_assignment:
             return sender_assignment.status.value
+
+        return None
 
     return None
 
