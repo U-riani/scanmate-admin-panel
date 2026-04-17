@@ -53,6 +53,9 @@ async def lifespan(app: FastAPI):
     try:
         print("Starting application...")
         print(f"APP_ENV: {settings.APP_ENV}")
+        print(f"CORS_ORIGINS raw: {settings.CORS_ORIGINS}")
+        print(f"CORS_ORIGINS parsed: {settings.cors_origins_list}")
+
         print("Initializing database tables...")
         Base.metadata.create_all(bind=engine)
 
@@ -77,10 +80,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
 
 app.include_router(api_router, prefix="/api")
