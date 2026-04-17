@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "postgres"
     DB_NAME: str = "scanmate"
 
-    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,https://scanmate-admin.netlify.app/"
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,https://scanmate-admin.netlify.app"
 
     model_config = SettingsConfigDict(
         env_file=".env",
