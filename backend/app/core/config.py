@@ -43,10 +43,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
-    # Preferred in production
     DATABASE_URL: str | None = None
 
-    # Fallback pieces for local/dev only
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_USER: str = "postgres"
@@ -63,10 +61,13 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        if self.APP_ENV.lower() == "production":
+            if not self.DATABASE_URL or not self.DATABASE_URL.strip():
+                raise ValueError("DATABASE_URL is required in production")
+
         if self.DATABASE_URL and self.DATABASE_URL.strip():
             url = self.DATABASE_URL.strip()
 
-            # Render/other providers often give postgres://
             if url.startswith("postgres://"):
                 url = url.replace("postgres://", "postgresql+psycopg2://", 1)
             elif url.startswith("postgresql://") and not url.startswith("postgresql+psycopg2://"):
