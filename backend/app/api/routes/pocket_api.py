@@ -363,36 +363,29 @@ def recalc_document_status(db: Session, module: str, document_id: int):
         if all(s == AssignmentStatus.waiting_to_start for s in statuses):
             new_status = "waiting_to_start"
 
-
-        elif all(
-                s in (AssignmentStatus.in_progress, AssignmentStatus.scanning_completed, AssignmentStatus.completed) for
-                s in statuses):
-
-            if all(s in (AssignmentStatus.scanning_completed, AssignmentStatus.completed) for s in statuses):
-
-                new_status = "scanning_completed"
-
-            else:
-
-                new_status = "in_progress"
-
-        elif all(s == AssignmentStatus.recount_requested for s in statuses):
-            new_status = "recount_requested"
-
-        elif all(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in statuses):
-            # everyone has at least started recount
+        elif any(
+                s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed)
+                for s in statuses
+        ):
             if all(s == AssignmentStatus.recount_completed for s in statuses):
                 new_status = "recount_completed"
             else:
                 new_status = "recount_in_progress"
 
-        else:
-            # mixed stage, not everyone has reached the next shared step yet
-            if any(s in (AssignmentStatus.recount_requested, AssignmentStatus.recount_in_progress,
-                         AssignmentStatus.recount_completed) for s in statuses):
-                new_status = "recount_requested"
+        elif any(s == AssignmentStatus.recount_requested for s in statuses):
+            new_status = "recount_requested"
+
+        elif any(
+                s in (AssignmentStatus.in_progress, AssignmentStatus.scanning_completed, AssignmentStatus.completed)
+                for s in statuses
+        ):
+            if all(s in (AssignmentStatus.scanning_completed, AssignmentStatus.completed) for s in statuses):
+                new_status = "scanning_completed"
             else:
-                new_status = "waiting_to_start"
+                new_status = "in_progress"
+
+        else:
+            new_status = "waiting_to_start"
 
         if module == "inventorization":
             obj = get_or_404(db, Inventorization, document_id)
@@ -401,54 +394,25 @@ def recalc_document_status(db: Session, module: str, document_id: int):
             obj = get_or_404(db, Receive, document_id)
             obj.status = ReceiveStatus(new_status)
 
-
-
     elif module == "transfer":
-
         sender_assignments = [a for a in assignments if a.role == AssignmentRole.sender]
-
         receiver_assignments = [a for a in assignments if a.role == AssignmentRole.receiver]
 
         obj = get_or_404(db, Transfer, document_id)
 
         sender_statuses = [a.status for a in sender_assignments]
-
         receiver_statuses = [a.status for a in receiver_assignments]
 
-        sender_phase_statuses = {
-
-            TransferStatus.waiting_to_start,
-
-            TransferStatus.sender_in_progress,
-
-            TransferStatus.sender_completed,
-
-            TransferStatus.sender_recount_requested,
-
-            TransferStatus.sender_recount_in_progress,
-
-            TransferStatus.sender_recount_completed,
-
-        }
-
         receiver_phase_statuses = {
-
             TransferStatus.waiting_receiver_to_start,
-
             TransferStatus.receive_in_progress,
-
             TransferStatus.receive_completed,
-
             TransferStatus.receive_recount_requested,
-
             TransferStatus.receive_recount_in_progress,
-
             TransferStatus.receive_recount_completed,
-
         }
 
-        # If document is already moved to receiver phase by admin, only recalc receiver side
-
+        # Receiver phase: once admin moved document here, only receiver assignments drive status
         if obj.status in receiver_phase_statuses:
 
             if not receiver_assignments:
@@ -457,8 +421,10 @@ def recalc_document_status(db: Session, module: str, document_id: int):
             elif all(s == AssignmentStatus.waiting_to_start for s in receiver_statuses):
                 obj.status = TransferStatus.waiting_receiver_to_start
 
-            elif any(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in
-                     receiver_statuses):
+            elif any(
+                s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed)
+                for s in receiver_statuses
+            ):
                 if all(s == AssignmentStatus.recount_completed for s in receiver_statuses):
                     obj.status = TransferStatus.receive_recount_completed
                 else:
@@ -467,7 +433,10 @@ def recalc_document_status(db: Session, module: str, document_id: int):
             elif any(s == AssignmentStatus.recount_requested for s in receiver_statuses):
                 obj.status = TransferStatus.receive_recount_requested
 
-            elif any(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in receiver_statuses):
+            elif any(
+                s in (AssignmentStatus.in_progress, AssignmentStatus.completed)
+                for s in receiver_statuses
+            ):
                 if all(s == AssignmentStatus.completed for s in receiver_statuses):
                     obj.status = TransferStatus.receive_completed
                 else:
@@ -476,92 +445,38 @@ def recalc_document_status(db: Session, module: str, document_id: int):
             else:
                 obj.status = TransferStatus.waiting_receiver_to_start
 
-
-        # Otherwise recalc sender side only
-
+        # Sender phase: sender assignments drive status until admin moves document forward
         else:
 
-            if sender_assignments and not all(
+            if not sender_assignments:
+                obj.status = TransferStatus.waiting_to_start
 
-                    s in (AssignmentStatus.completed, AssignmentStatus.recount_completed)
+            elif all(s == AssignmentStatus.waiting_to_start for s in sender_statuses):
+                obj.status = TransferStatus.waiting_to_start
 
-                    for s in sender_statuses
-
+            elif any(
+                s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed)
+                for s in sender_statuses
             ):
-
-                if all(s == AssignmentStatus.waiting_to_start for s in sender_statuses):
-
-                    obj.status = TransferStatus.waiting_to_start
-
-
-                elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in sender_statuses):
-
-                    if all(s == AssignmentStatus.completed for s in sender_statuses):
-
-                        obj.status = TransferStatus.sender_completed
-
-                    else:
-
-                        obj.status = TransferStatus.sender_in_progress
-
-
-                elif all(s == AssignmentStatus.recount_requested for s in sender_statuses):
-
-                    obj.status = TransferStatus.sender_recount_requested
-
-
-                elif all(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in
-                         sender_statuses):
-
-                    if all(s == AssignmentStatus.recount_completed for s in sender_statuses):
-
-                        obj.status = TransferStatus.sender_recount_completed
-
-                    else:
-
-                        obj.status = TransferStatus.sender_recount_in_progress
-
-
-                else:
-
-                    if any(
-
-                            s in (
-
-                                    AssignmentStatus.recount_requested,
-
-                                    AssignmentStatus.recount_in_progress,
-
-                                    AssignmentStatus.recount_completed,
-
-                            )
-
-                            for s in sender_statuses
-
-                    ):
-
-                        obj.status = TransferStatus.sender_recount_requested
-
-                    else:
-
-                        obj.status = TransferStatus.waiting_to_start
-
-
-            elif sender_assignments and all(
-
-                    s in (AssignmentStatus.completed, AssignmentStatus.recount_completed)
-
-                    for s in sender_statuses
-
-            ):
-
                 if all(s == AssignmentStatus.recount_completed for s in sender_statuses):
-
                     obj.status = TransferStatus.sender_recount_completed
-
                 else:
+                    obj.status = TransferStatus.sender_recount_in_progress
 
+            elif any(s == AssignmentStatus.recount_requested for s in sender_statuses):
+                obj.status = TransferStatus.sender_recount_requested
+
+            elif any(
+                s in (AssignmentStatus.in_progress, AssignmentStatus.completed)
+                for s in sender_statuses
+            ):
+                if all(s == AssignmentStatus.completed for s in sender_statuses):
                     obj.status = TransferStatus.sender_completed
+                else:
+                    obj.status = TransferStatus.sender_in_progress
+
+            else:
+                obj.status = TransferStatus.waiting_to_start
 
     db.add(obj)
     db.commit()
