@@ -452,66 +452,29 @@ def recalc_document_status(db: Session, module: str, document_id: int):
         if obj.status in receiver_phase_statuses:
 
             if not receiver_assignments:
-
                 obj.status = TransferStatus.waiting_receiver_to_start
-
 
             elif all(s == AssignmentStatus.waiting_to_start for s in receiver_statuses):
-
                 obj.status = TransferStatus.waiting_receiver_to_start
 
-
-            elif all(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in receiver_statuses):
-
-                if all(s == AssignmentStatus.completed for s in receiver_statuses):
-
-                    obj.status = TransferStatus.receive_completed
-
-                else:
-
-                    obj.status = TransferStatus.receive_in_progress
-
-
-            elif all(s == AssignmentStatus.recount_requested for s in receiver_statuses):
-
-                obj.status = TransferStatus.receive_recount_requested
-
-
-            elif all(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in
+            elif any(s in (AssignmentStatus.recount_in_progress, AssignmentStatus.recount_completed) for s in
                      receiver_statuses):
-
                 if all(s == AssignmentStatus.recount_completed for s in receiver_statuses):
-
                     obj.status = TransferStatus.receive_recount_completed
-
                 else:
-
                     obj.status = TransferStatus.receive_recount_in_progress
 
+            elif any(s == AssignmentStatus.recount_requested for s in receiver_statuses):
+                obj.status = TransferStatus.receive_recount_requested
+
+            elif any(s in (AssignmentStatus.in_progress, AssignmentStatus.completed) for s in receiver_statuses):
+                if all(s == AssignmentStatus.completed for s in receiver_statuses):
+                    obj.status = TransferStatus.receive_completed
+                else:
+                    obj.status = TransferStatus.receive_in_progress
 
             else:
-
-                if any(
-
-                        s in (
-
-                                AssignmentStatus.recount_requested,
-
-                                AssignmentStatus.recount_in_progress,
-
-                                AssignmentStatus.recount_completed,
-
-                        )
-
-                        for s in receiver_statuses
-
-                ):
-
-                    obj.status = TransferStatus.receive_recount_requested
-
-                else:
-
-                    obj.status = TransferStatus.waiting_receiver_to_start
+                obj.status = TransferStatus.waiting_receiver_to_start
 
 
         # Otherwise recalc sender side only
@@ -669,6 +632,21 @@ def _get_user_document_status(
             if receiver_status == AssignmentStatus.waiting_to_start.value:
                 return "waiting_receiver_to_start"
 
+            if receiver_status == AssignmentStatus.in_progress.value:
+                return "receive_in_progress"
+
+            if receiver_status == AssignmentStatus.recount_requested.value:
+                return "receive_recount_requested"
+
+            if receiver_status == AssignmentStatus.recount_in_progress.value:
+                return "receive_recount_in_progress"
+
+            if receiver_status == AssignmentStatus.completed.value:
+                return "receive_completed"
+
+            if receiver_status == AssignmentStatus.recount_completed.value:
+                return "receive_recount_completed"
+
             return receiver_status
 
         if sender_assignment:
@@ -679,8 +657,17 @@ def _get_user_document_status(
     return None
 
 def _normalize_client_status_for_assignment(module: str, current_status: str) -> str:
-    if module == "transfer" and current_status == "waiting_receiver_to_start":
-        return "waiting_to_start"
+    if module == "transfer":
+        mapping = {
+            "waiting_receiver_to_start": "waiting_to_start",
+            "receive_in_progress": "in_progress",
+            "receive_recount_requested": "recount_requested",
+            "receive_recount_in_progress": "recount_in_progress",
+            "receive_completed": "completed",
+            "receive_recount_completed": "recount_completed",
+        }
+        return mapping.get(current_status, current_status)
+
     return current_status
 
 def _infer_transfer_role_from_status(doc) -> AssignmentRole | None:
