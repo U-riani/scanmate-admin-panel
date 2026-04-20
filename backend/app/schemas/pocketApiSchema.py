@@ -1,3 +1,5 @@
+# backend/app/schemas/pocketApiSchema.py
+
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
@@ -52,3 +54,33 @@ class PocketDocumentLine(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PocketStatusChangeRequest(BaseModel):
+    current_status: str
+    role: str | None = None
+
+class PocketSubmitLineRow(BaseModel):
+    line_id: int | None = None
+    barcode: str
+    quantity: int
+    box_id: str | None = None
+
+
+class PocketSubmitLinesRequest(BaseModel):
+    current_status: str
+    role: str | None = None
+    rows: list[PocketSubmitLineRow]
+
+
+class PocketSubmitLinesResponse(BaseModel):
+    ok: bool
+    document_id: int
+    module: str
+    role: str | None = None
+    processed_rows: int
+    updated_lines: int
+    assignment_status: str
+
+class PocketFinishScanningRequest(BaseModel):
+    current_status: str
+    role: str | None = None

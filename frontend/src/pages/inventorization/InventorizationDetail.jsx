@@ -1,19 +1,26 @@
+// frontend\src\pages\inventorization\InventorizationDetail.jsx
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useInventorizations } from "../../queries/inventorizationQuery";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
 import { useInventorizationLines } from "../../queries/inventorizationLinesQuery";
-import { useInventorizationStatusMutation } from "../../queries/inventorizationStatusMutation";
+// import { useInventorizationStatusMutation } from "../../queries/inventorizationStatusMutation";
 import { useCreateRecount } from "../../queries/inventorizationRecountMutation";
-import { preloadLinesFromWarehouse } from "../../api/inventorizationLinesService";
+// import { preloadLinesFromWarehouse } from "../../api/inventorizationLinesService";
 import StatusBadge from "../../components/documents/StatusBadge";
 import ImportInventorizationExcelModal from "../../components/inventorization/ImportInventorizationExcelModal";
-import { INVENTORIZATION_FLOW } from "../../config/inventorizationStatusFlow";
+// import { INVENTORIZATION_FLOW } from "../../config/inventorizationStatusFlow";
 import {
   downloadTemplate,
   TEMPLATES,
 } from "../../utils/excel/downloadTemplate";
+import StatusBarComponent from "../../components/reusable/StatusBarComponent";
+import {
+  InventorizationStatus,
+  uploadAllowedStatuses,
+  InventorizationReceiveShowRecountQuantity,
+} from "../../constants/statusData";
 
 export default function InventorizationDetail() {
   const { id } = useParams();
@@ -24,11 +31,17 @@ export default function InventorizationDetail() {
   const { data: warehouses = [] } = useWarehouses();
   const { data: pocketUsers = [] } = usePocketUsers();
   const recountMutation = useCreateRecount();
-
   const doc = docs.find((d) => String(d.id) === id);
   const { data: lines = [] } = useInventorizationLines(doc?.id);
-  const statusMutation = useInventorizationStatusMutation();
-  console.log(lines)
+  // const statusMutation = useInventorizationStatusMutation();
+
+  const [selectedRecountEmployees, setSelectedRecountEmployees] = useState([]);
+
+  lines.map((l) => {
+    if (l.recount_requested) {
+      console.log("Recount requested for line:", l.id, l.recount_requested);
+    }
+  });
 
   if (!doc)
     return (
@@ -50,23 +63,23 @@ export default function InventorizationDetail() {
   const progress =
     totalLines === 0 ? 0 : Math.round((countedLines / totalLines) * 100);
 
-  function renderActions(status) {
-    const allowed = INVENTORIZATION_FLOW[status] || [];
-    return allowed.map((nextStatus) => (
-      <button
-        key={nextStatus}
-        className="btn btn-primary btn-sm"
-        onClick={async () => {
-          if (nextStatus === "in_progress") {
-            await preloadLinesFromWarehouse(doc.id, doc.warehouse_id);
-          }
-          statusMutation.mutate({ id: doc.id, status: nextStatus });
-        }}
-      >
-        → {nextStatus.replace(/_/g, " ")}
-      </button>
-    ));
-  }
+  // function renderActions(status) {
+  //   const allowed = INVENTORIZATION_FLOW[status] || [];
+  //   return allowed.map((nextStatus) => (
+  //     <button
+  //       key={nextStatus}
+  //       className="btn btn-primary btn-sm"
+  //       onClick={async () => {
+  //         if (nextStatus === "in_progress") {
+  //           await preloadLinesFromWarehouse(doc.id, doc.warehouse_id);
+  //         }
+  //         statusMutation.mutate({ id: doc.id, status: nextStatus });
+  //       }}
+  //     >
+  //       → {nextStatus.replace(/_/g, " ")}
+  //     </button>
+  //   ));
+  // }
 
   function toggleRecount(lineId) {
     setSelectedLines((prev) =>
@@ -76,15 +89,36 @@ export default function InventorizationDetail() {
     );
   }
 
+  function toggleRecountEmployee(userId) {
+    setSelectedRecountEmployees((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
+    );
+  }
+
   function createRecount() {
+    if (selectedRecountEmployees.length === 0) {
+      alert("Please select at least 1 employee for recount.");
+      return;
+    }
+
+    if (selectedLines.length === 0) {
+      alert("Please select at least 1 line for recount.");
+      return;
+    }
+
     const recountItems = lines.filter((l) => selectedLines.includes(l.id));
+    const recountPayload = recountItems.map((line) => line.id);
+
     recountMutation.mutate({
       parent_document_id: doc.id,
-      warehouse_id: doc.warehouse_id,
-      employees: doc.employees,
-      items: recountItems,
+      employees: selectedRecountEmployees,
+      line_ids: recountPayload,
     });
+
     setSelectedLines([]);
+    setSelectedRecountEmployees([]);
   }
 
   function formatDate(str) {
@@ -110,7 +144,7 @@ export default function InventorizationDetail() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title">
-            Inventorization{" "}
+            Inventorization
             <span
               className="font-mono"
               style={{ color: "var(--accent-cyan)", fontSize: "1.1rem" }}
@@ -128,51 +162,61 @@ export default function InventorizationDetail() {
             {doc.name}
           </p>
         </div>
-        {doc?.status === "draft" && (
-          <div className="flex gap-2 flex-wrap">
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() =>
-                downloadTemplate(
-                  TEMPLATES.inventorizationLines.headers,
-                  TEMPLATES.inventorizationLines.filename,
-                )
-              }
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Download Template
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setImportOpen(true)}
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Import Excel
-            </button>
+        <div className="flex flex-col items-end justify-between gap-3">
+          <div>
+            <StatusBarComponent
+              documentId={doc.id}
+              statusObject={InventorizationStatus}
+              currentStatus={doc.status}
+              module="inventorization"
+            />
           </div>
-        )}
+          {uploadAllowedStatuses.includes(doc.status) && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() =>
+                  downloadTemplate(
+                    TEMPLATES.inventorizationLines.headers,
+                    TEMPLATES.inventorizationLines.filename,
+                  )
+                }
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Download Template
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setImportOpen(true)}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Import Excel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Info card */}
@@ -210,9 +254,8 @@ export default function InventorizationDetail() {
         </div>
       </div>
 
-      {/* Actions + Progress */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="glass-card p-5">
+        {/* <div className="glass-card p-5">
           <p className="section-label mb-3">Available Actions</p>
           <div className="flex gap-2 flex-wrap">
             {renderActions(doc.status)}
@@ -222,7 +265,7 @@ export default function InventorizationDetail() {
               </p>
             )}
           </div>
-        </div>
+        </div> */}
 
         <div className="glass-card p-5">
           <div className="flex justify-between items-center mb-3">
@@ -259,8 +302,37 @@ export default function InventorizationDetail() {
           <h2 style={{ fontWeight: 600, fontSize: "0.9375rem" }}>
             Inventorization Lines
           </h2>
-          {selectedLines.length > 0 && (
-            <button className="btn btn-warning btn-sm" onClick={createRecount}>
+          <div className="flex gap-2 flex-wrap">
+            {employees?.map((e) => {
+              const selected = selectedRecountEmployees.includes(e.id);
+
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => toggleRecountEmployee(e.id)}
+                  className={`rounded-2xl px-3 py-1 text-sm border ${
+                    selected
+                      ? "bg-amber-700 border-amber-500 text-white"
+                      : "bg-transparent border-gray-500 text-gray-300"
+                  }`}
+                >
+                  {e.username}
+                </button>
+              );
+            })}
+          </div>
+          {selectedLines?.length > 0 && (
+            <button
+              className="btn btn-warning btn-sm"
+              onClick={createRecount}
+              disabled={selectedRecountEmployees.length === 0}
+              title={
+                selectedRecountEmployees.length === 0
+                  ? "Select at least 1 employee"
+                  : ""
+              }
+            >
               Create Recount ({selectedLines.length})
             </button>
           )}
@@ -276,11 +348,16 @@ export default function InventorizationDetail() {
                 <th>Product</th>
                 <th>Expected</th>
                 <th>Counted</th>
+                {doc?.status &&
+                  InventorizationReceiveShowRecountQuantity.includes(
+                    doc.status,
+                  ) && <th>Recounted qty</th>}
                 <th>Diff</th>
+                <th>Rec_Diff</th>
               </tr>
             </thead>
             <tbody>
-              {lines.length === 0 ? (
+              {lines?.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
@@ -294,13 +371,22 @@ export default function InventorizationDetail() {
                   </td>
                 </tr>
               ) : (
-                lines.map((line) => {
+                lines?.map((line) => {
                   const diff =
                     line.counted_qty === null
                       ? null
                       : line.counted_qty - line.expected_qty;
+
+                  const diffRecount =
+                    !line.recount_requested && line.recount_qty == 0
+                      ? null
+                      : line.recount_qty - line.expected_qty;
+                    console.log(diffRecount, line.recount_qty, line.expected_qty, line.recount_requested);
                   return (
-                    <tr key={line.id}>
+                    <tr
+                      key={line.id}
+                      className={`${line.recount_requested ? "bg-amber-950   hover:bg-amber-900!" : ""}`}
+                    >
                       <td>
                         <input
                           type="checkbox"
@@ -314,6 +400,14 @@ export default function InventorizationDetail() {
                       <td style={{ fontWeight: 500 }}>{line.product_name}</td>
                       <td className="cell-mono">{line.expected_qty}</td>
                       <td className="cell-mono">{line.counted_qty ?? "—"}</td>
+                      {doc?.status &&
+                        InventorizationReceiveShowRecountQuantity.includes(
+                          doc.status,
+                        ) && (
+                          <td className="cell-mono">
+                            {line.recount_qty ?? "—"}
+                          </td>
+                        )}
                       <td>
                         {diff === null ? (
                           <span className="diff-zero">—</span>
@@ -323,6 +417,17 @@ export default function InventorizationDetail() {
                           <span className="diff-positive">+{diff}</span>
                         ) : (
                           <span className="diff-negative">{diff}</span>
+                        )}
+                      </td>
+                      <td>
+                        {diffRecount === null ? (
+                          <span className="diff-zero">—</span>
+                        ) : diffRecount === 0 ? (
+                          <span className="diff-zero">0</span>
+                        ) : diffRecount > 0 ? (
+                          <span className="diff-positive">+{diffRecount}</span>
+                        ) : (
+                          <span className="diff-negative">{diffRecount}</span>
                         )}
                       </td>
                     </tr>

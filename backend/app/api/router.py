@@ -12,5 +12,5 @@ api_router.include_router(pocket_users.router, prefix='/pocket-users', tags=['po
 api_router.include_router(transfers.router, prefix='/transfers', tags=['transfers'])
 api_router.include_router(inventorization.router, prefix='/inventorization', tags=['inventorization'])
 api_router.include_router(receive.router, prefix='/receive', tags=['receive'])
-api_router.include_router(prices.router, prefix='/price-uploads', tags=['price-uploads'])
+api_router.include_router(prices.router, prefix='/price', tags=['price'])
 api_router.include_router(pocket_api.router, prefix='/pocket-api', tags=['pocket-api'])

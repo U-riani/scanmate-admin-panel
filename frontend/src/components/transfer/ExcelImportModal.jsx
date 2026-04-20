@@ -1,59 +1,150 @@
+import { useState } from "react";
 import * as XLSX from "xlsx";
 
-export default function ExcelImportModal({ documentId, onImport }) {
+export default function ExcelImportModal({ open, onClose, documentId, onImport }) {
+  const [rows, setRows] = useState([]);
+  const [summary, setSummary] = useState(null);
+
+  if (!open) return null;
+
   function handleFile(e) {
     const file = e.target.files[0];
+    if (!file) return;
+
     const reader = new FileReader();
 
     reader.onload = (evt) => {
       const data = new Uint8Array(evt.target.result);
-
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const parsedRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-      onImport(rows); // send FULL rows to backend
+      setRows(parsedRows);
+      setSummary({ rows: parsedRows.length });
     };
 
     reader.readAsArrayBuffer(file);
   }
 
+  function handleImport() {
+    onImport(rows);
+    setRows([]);
+    setSummary(null);
+    onClose();
+  }
+
   return (
-    <div className="space-y-3">
-      <p className="section-label">Import from Excel</p>
-      <label
-        className="flex items-center gap-3 p-4 rounded-xl"
-        style={{
-          cursor: "pointer",
-          border: "1px dashed var(--glass-border)",
-          background: "rgba(255,255,255,0.02)",
-          transition: "border-color 0.2s",
-        }}
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          style={{ color: "var(--text-muted)", flexShrink: 0 }}
-        >
-          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-          <polyline points="17 8 12 3 7 8" />
-          <line x1="12" y1="3" x2="12" y2="15" />
-        </svg>
-        <span style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-          Click to select .xlsx file
-        </span>
-        <input
-          type="file"
-          accept=".xlsx"
-          onChange={handleFile}
-          style={{ display: "none" }}
-        />
-      </label>
+    <div className="glass-modal-backdrop">
+      <div className="glass-modal" style={{ width: 480 }}>
+        <div className="glass-modal-header">
+          <h2 className="glass-modal-title">Import Transfer Items</h2>
+          <button className="glass-modal-close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="field-label">Select File</label>
+            <label
+              className="glass-card flex items-center gap-3 p-4 mt-1"
+              style={{
+                cursor: "pointer",
+                borderStyle: "dashed",
+                borderColor: rows.length
+                  ? "rgba(0,212,255,0.3)"
+                  : "var(--glass-border)",
+              }}
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                style={{
+                  color: rows.length
+                    ? "var(--accent-cyan)"
+                    : "var(--text-muted)",
+                  flexShrink: 0,
+                }}
+              >
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+
+              <span
+                style={{
+                  color: rows.length
+                    ? "var(--text-primary)"
+                    : "var(--text-muted)",
+                  fontSize: "0.875rem",
+                }}
+              >
+                {rows.length
+                  ? `${rows.length} rows loaded`
+                  : "Click to select .xlsx or .xls file"}
+              </span>
+
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFile}
+                style={{ display: "none" }}
+              />
+            </label>
+          </div>
+
+          {summary && (
+            <div
+              className="glass-card p-4"
+              style={{
+                background: "rgba(0,212,255,0.04)",
+                borderColor: "rgba(0,212,255,0.2)",
+              }}
+            >
+              <p className="section-label">Preview</p>
+              <p
+                className="font-mono"
+                style={{
+                  fontSize: "1.375rem",
+                  fontWeight: 700,
+                  color: "var(--accent-cyan)",
+                  marginTop: 4,
+                }}
+              >
+                {summary.rows}
+              </p>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
+                rows detected
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-2 justify-end pt-1">
+            <button
+              onClick={() => {
+                setRows([]);
+                setSummary(null);
+                onClose();
+              }}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
+
+            <button
+              disabled={!rows.length}
+              onClick={handleImport}
+              className="btn btn-primary"
+            >
+              Import
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

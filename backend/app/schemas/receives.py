@@ -1,3 +1,5 @@
+#backend/app/schemas/receives.py
+
 from datetime import datetime
 from pydantic import BaseModel
 from app.schemas.common import ORMModel
@@ -16,7 +18,8 @@ class ReceiveCreate(BaseModel):
 
 
 class ReceiveStatusUpdate(BaseModel):
-    status: ReceiveStatus
+    prev_status: str
+    new_status: str
 
 
 class ReceiveRead(ORMModel):
@@ -32,7 +35,7 @@ class ReceiveRead(ORMModel):
     status: ReceiveStatus
 
     receiver_user_ids: list[int] = []
-
+    recount_user_ids: list[int] = []
     received_at: datetime | None = None
 
     created_by: int | None = None
@@ -107,3 +110,17 @@ class ReceiveLineRead(ORMModel):
 
 class ImportRowsResponse(BaseModel):
     imported: int
+
+class MarkRecountRequest(BaseModel):
+    line_ids: list[int]
+
+
+class RecountCreateRequest(BaseModel):
+    parent_document_id: int
+    employees: list[int] = []
+    line_ids: list[int]
+
+
+class RecountCreateResponse(BaseModel):
+    document: ReceiveRead
+    lines: list[ReceiveLineRead]

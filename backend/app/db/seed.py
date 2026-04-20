@@ -1,3 +1,5 @@
+#backend/app/db/seed.py
+
 from datetime import datetime, timezone
 from sqlalchemy import select, text
 
@@ -18,6 +20,8 @@ from app.models.models import (
     WarehouseProduct,
     WebsiteRole,
     WebsiteUser,
+    DocumentAssignment
+
 )
 from app.models.enums import (
     DocumentModule,
@@ -28,6 +32,8 @@ from app.models.enums import (
     PriceUploadStatus,
     SignatureStatus,
     TransferStatus,
+    AssignmentStatus,
+    AssignmentRole
 )
 
 _SEEDED_TABLES = [
@@ -45,6 +51,8 @@ _SEEDED_TABLES = [
     "receive_lines",
     "price_uploads",
     "price_rows",
+    "document_assignments",
+    "document_line_user_results",
 ]
 
 
@@ -55,7 +63,8 @@ def _reset_sequences(db):
                 f"""
                 SELECT setval(
                     pg_get_serial_sequence('{table}', 'id'),
-                    COALESCE((SELECT MAX(id) FROM {table}), 0)
+                    COALESCE((SELECT MAX(id) FROM {table}), 1),
+                    (SELECT COUNT(*) > 0 FROM {table})
                 )
                 """
             )
@@ -257,9 +266,11 @@ def seed_database():
             to_warehouse_id=2,
             module="transfer",
             scan_type="barcode",
-            status=TransferStatus.draft,
+            status=TransferStatus.waiting_to_start,
             sender_user_ids=[1],
             receiver_user_ids=[1, 2],
+            sender_recount_user_ids=[],
+            receiver_recount_user_ids=[],
             signature_status=SignatureStatus.pending,
             description="desr dgf TBL to BAT",
             created_by=1,
@@ -284,10 +295,18 @@ def seed_database():
                 size="xl",
                 price=15.95,
                 expected_qty=5,
+                base_sent_qty=5,
+                base_received_qty=0,
+
                 sent_qty=5,
                 received_qty=0,
                 difference_qty=-5,
-                recount_requested=False
+                base_sender_recount_qty=0,
+                base_receiver_recount_qty=0,
+                sender_recounted_qty=0,
+                receiver_recounted_qty=0,
+                sender_recount_requested=False,
+                receiver_recount_requested=False,
             ),
             TransferLine(
                 id=2,
@@ -300,9 +319,18 @@ def seed_database():
                 size="L",
                 price=67.95,
                 expected_qty=3,
+                base_sent_qty=3,
+                base_received_qty=0,
+
                 sent_qty=0,
                 received_qty=0,
                 difference_qty=0,
+                base_sender_recount_qty=0,
+                base_receiver_recount_qty=0,
+                sender_recounted_qty=0,
+                receiver_recounted_qty=0,
+                sender_recount_requested=False,
+                receiver_recount_requested=False,
             ),
         ]
         db.add_all(transfer_lines)
@@ -315,9 +343,10 @@ def seed_database():
             warehouse_id=1,
             module="inventorization",
             scan_type="barcode",
-            status=InventorizationStatus.draft,
+            status=InventorizationStatus.waiting_to_start,
             description="Some description for Central Count inv",
             employees=[1, 2],
+            recount_user_ids=[],
         )
         db.add(inv)
         db.commit()
@@ -333,6 +362,8 @@ def seed_database():
                 size="xl",
                 price=15.95,
                 expected_qty=15,
+                base_counted_qty=14,
+                base_recount_qty=0,
                 counted_qty=14,
                 employee_id=1,
                 recount_requested=False
@@ -347,6 +378,8 @@ def seed_database():
                 size="L",
                 price=67.95,
                 expected_qty=9,
+                base_counted_qty=9,
+                base_recount_qty=0,
                 counted_qty=9,
                 employee_id=2,
             ),
@@ -362,8 +395,9 @@ def seed_database():
             warehouse_id=1,
             module="receive",
             scan_type="barcode",
-            status=ReceiveStatus.draft,
+            status=ReceiveStatus.waiting_to_start,
             receiver_user_ids=[1, 2],
+            recount_user_ids=[],
             created_by=1,
             description="SOme description for TBILisi receive",
             employees=[1, 2],
@@ -388,6 +422,8 @@ def seed_database():
                 size="XL",
                 price=15.95,
                 expected_qty=5,
+                base_counted_qty=5,
+                base_recount_qty=0,
                 counted_qty=5,
                 difference_qty=0,
                 recount_requested=False,
@@ -403,6 +439,8 @@ def seed_database():
                 size="L",
                 price=67.95,
                 expected_qty=3,
+                base_counted_qty=2,
+                base_recount_qty=0,
                 counted_qty=2,
                 difference_qty=-1,
                 recount_requested=True,
@@ -462,6 +500,73 @@ def seed_database():
         ]
         db.add_all(price_rows)
 
+        db.commit()
+
+        document_assignments = [
+            # Transfer
+            DocumentAssignment(
+                id=1,
+                document_module=DocumentModule.transfer,
+                document_id=1,
+                pocket_user_id=1,
+                role=AssignmentRole.sender,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+            DocumentAssignment(
+                id=2,
+                document_module=DocumentModule.transfer,
+                document_id=1,
+                pocket_user_id=1,
+                role=AssignmentRole.receiver,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+            DocumentAssignment(
+                id=3,
+                document_module=DocumentModule.transfer,
+                document_id=1,
+                pocket_user_id=2,
+                role=AssignmentRole.receiver,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+
+            # Inventorization
+            DocumentAssignment(
+                id=4,
+                document_module=DocumentModule.inventorization,
+                document_id=1,
+                pocket_user_id=1,
+                role=AssignmentRole.worker,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+            DocumentAssignment(
+                id=5,
+                document_module=DocumentModule.inventorization,
+                document_id=1,
+                pocket_user_id=2,
+                role=AssignmentRole.worker,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+
+            # Receive
+            DocumentAssignment(
+                id=6,
+                document_module=DocumentModule.receive,
+                document_id=1,
+                pocket_user_id=1,
+                role=AssignmentRole.worker,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+            DocumentAssignment(
+                id=7,
+                document_module=DocumentModule.receive,
+                document_id=1,
+                pocket_user_id=2,
+                role=AssignmentRole.worker,
+                status=AssignmentStatus.waiting_to_start,
+            ),
+        ]
+
+        db.add_all(document_assignments)
         db.commit()
 
         _reset_sequences(db)

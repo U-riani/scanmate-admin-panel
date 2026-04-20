@@ -1,3 +1,4 @@
+#backend/app/schemas/inventorizations.py
 from datetime import datetime
 from pydantic import BaseModel
 from app.schemas.common import ORMModel
@@ -9,12 +10,13 @@ class InventorizationCreate(BaseModel):
     name: str
     warehouse_id: int
     module: DocumentModule = DocumentModule.inventorization
-    scan_type: ScanType = ScanType.barcode
+    scan_type: ScanType
     description: str | None = None
     employees: list[int] = []
 
 class InventorizationStatusUpdate(BaseModel):
-    status: str
+    prev_status: str
+    new_status: str
 
 
 class InventorizationRead(ORMModel):
@@ -30,6 +32,7 @@ class InventorizationRead(ORMModel):
     status: str
     description: str | None = None
     employees: list[int] = []
+    recount_user_ids: list[int] = []
 
     created_at: datetime
     updated_at: datetime
@@ -79,9 +82,8 @@ class MarkRecountRequest(BaseModel):
 
 class RecountCreateRequest(BaseModel):
     parent_document_id: int
-    warehouse_id: int
     employees: list[int] = []
-    items: list[InventorizationLineRead]
+    line_ids: list[int]
 
 
 class RecountCreateResponse(BaseModel):

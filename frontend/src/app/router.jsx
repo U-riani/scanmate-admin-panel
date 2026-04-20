@@ -16,7 +16,7 @@ import Receive from "../pages/receive/Receive";
 import ReceiveDetail from "../pages/receive/ReceiveDetail";
 import Report from "../pages/report/Report";
 import RolesPermissions from "../pages/rolesPermissions/RolesPermissions";
-import Sales from "../pages/sales/Sales";
+// import Sales from "../pages/sales/Sales";
 import PriceLists from "../pages/sales/PriceLists";
 import PriceUploadDetail from "../pages/sales/PriceUploadDetail";
 import Settings from "../pages/settings/Settings";
@@ -60,14 +60,14 @@ export default function Router() {
           )}
         />
 
-        <Route
+        {/* <Route
           path={PATHS.SALES}
           element={(
             <ModuleRoute module="sales">
               <Sales />
             </ModuleRoute>
           )}
-        />
+        /> */}
         <Route
           path={PATHS.SALES_PRICE_LISTS}
           element={(

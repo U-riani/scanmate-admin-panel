@@ -4,24 +4,37 @@ import { useWarehouseStore } from "../../store/warehouseStore";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { mockPocketRoles } from "../../data/mockPocketRoles";
+import { useAuthStore } from "../../store/authStore";
 
 export default function CreateReceiveModal({ open, onClose }) {
   const { mutate, isPending } = useCreateReceive();
   const { data: users = [] } = usePocketUsers();
   const { data: warehouses = [] } = useWarehouses();
   const currentWarehouseId = useWarehouseStore((s) => s.currentWarehouseId);
-  const warehouse = warehouses.find((w) => w.id === currentWarehouseId);
+  // const warehouse = warehouses.find((w) => w.id === currentWarehouseId);
+  const allowedWarehouseIds = useAuthStore(
+    (state) => state.user?.warehouses || [],
+  );
 
   const [form, setForm] = useState({
-    name: "", type: "barcode", employees: [], description: "",
+    name: "",
+    warehouse_id: "",
+    scan_type: "barcode",
+    employees: [],
+    description: "",
   });
 
   if (!open) return null;
 
+  const allowedWarehouses = warehouses.filter((w) => {
+    return allowedWarehouseIds.includes(w.id);
+  });
+
   const allowedEmployees = users.filter((u) => {
     const role = mockPocketRoles.find((r) => r.id === u.role_id);
+
     return (
-      (u.warehouses || []).includes(currentWarehouseId) &&
+      (u.warehouses || []).includes(Number(form.warehouse_id)) &&
       role?.modules?.receive === true &&
       u.active === true
     );
@@ -29,7 +42,12 @@ export default function CreateReceiveModal({ open, onClose }) {
 
   function handleChange(e) {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === "warehouse_id" ? { employees: [] } : {}),
+    }));
   }
 
   function toggleEmployee(id) {
@@ -43,26 +61,26 @@ export default function CreateReceiveModal({ open, onClose }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    console.log(form)
-    if (!currentWarehouseId) {
-      alert("Please select a warehouse first.");
-      return;
-    }
-    console.log(form)
+    
     mutate(
       {
         name: form.name,
-        type: form.type,
-        warehouse_id: currentWarehouseId,
+        scan_type: form.scan_type,
+        warehouse_id: Number(form.warehouse_id),
         receiver_user_ids: form.employees,
         description: form.description,
       },
       {
         onSuccess: () => {
           onClose();
-          setForm({ name: "", type: "barcode", employees: [], description: "" });
+          setForm({
+            name: "",
+            scan_type: "barcode",
+            employees: [],
+            description: "",
+          });
         },
-      }
+      },
     );
   }
 
@@ -71,10 +89,12 @@ export default function CreateReceiveModal({ open, onClose }) {
       <div className="glass-modal" style={{ width: 460 }}>
         <div className="glass-modal-header">
           <h2 className="glass-modal-title">Create Receive</h2>
-          <button className="glass-modal-close" onClick={onClose}>✕</button>
+          <button className="glass-modal-close" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
-        <div
+        {/* <div
           className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4"
           style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.15)" }}
         >
@@ -88,9 +108,42 @@ export default function CreateReceiveModal({ open, onClose }) {
               {warehouse?.name || "Not selected"}
             </span>
           </span>
-        </div>
+        </div> */}
 
         <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="field-label flex! items-center gap-2">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                style={{ color: "var(--accent-cyan)" }}
+              >
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              <span>Warehouse</span>
+            </label>
+
+            <select
+              className="glass-select"
+              name="warehouse_id"
+              value={form.warehouse_id}
+              onChange={handleChange}
+              required
+            >
+              <option value="" disabled>
+                Select warehouse
+              </option>
+              {allowedWarehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="field-label">Name</label>
             <input
@@ -105,7 +158,12 @@ export default function CreateReceiveModal({ open, onClose }) {
 
           <div>
             <label className="field-label">Type</label>
-            <select name="type" className="glass-select" value={form.type} onChange={handleChange}>
+            <select
+              name="scan_type"
+              className="glass-select"
+              value={form.scan_type}
+              onChange={handleChange}
+            >
               <option value="barcode">Barcode based</option>
               <option value="loots">Box based</option>
             </select>
@@ -123,19 +181,32 @@ export default function CreateReceiveModal({ open, onClose }) {
               }}
             >
               {allowedEmployees.length === 0 ? (
-                <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
+                <p
+                  style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}
+                >
                   No available employees for this warehouse
                 </p>
               ) : (
                 allowedEmployees.map((u) => (
-                  <label key={u.id} className="flex items-center gap-2.5" style={{ cursor: "pointer" }}>
+                  <label
+                    key={u.id}
+                    className="flex items-center gap-2.5"
+                    style={{ cursor: "pointer" }}
+                  >
                     <input
                       type="checkbox"
                       className="glass-checkbox"
                       checked={form.employees.includes(u.id)}
                       onChange={() => toggleEmployee(u.id)}
                     />
-                    <span style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>{u.username}</span>
+                    <span
+                      style={{
+                        color: "var(--text-secondary)",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      {u.username}
+                    </span>
                   </label>
                 ))
               )}
@@ -157,13 +228,19 @@ export default function CreateReceiveModal({ open, onClose }) {
           <div className="flex gap-2 pt-2">
             <button
               type="submit"
-              disabled={!currentWarehouseId || isPending}
+              disabled={!form.name || form.employees.length == 0  || isPending}
               className="btn btn-primary"
               style={{ flex: 1 }}
             >
               {isPending ? "Creating…" : "Create Receive"}
             </button>
-            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
           </div>
         </form>
       </div>

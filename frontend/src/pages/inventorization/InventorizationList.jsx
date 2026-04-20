@@ -107,7 +107,7 @@ export default function InventorizationList() {
                   <td className="cell-muted">{getWarehouseName(doc.warehouse_id)}</td>
                   <td>
                     <span
-                      className="badge"
+                      className="badge "
                       style={{
                         background: "rgba(124,58,237,0.08)",
                         color: "#a78bfa",

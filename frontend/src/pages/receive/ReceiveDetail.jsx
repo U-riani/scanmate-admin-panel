@@ -1,10 +1,15 @@
+// frontend\src\pages\receive\ReceiveDetail.jsx
+
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useReceives } from "../../queries/receiveQuery";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
 import { useReceiveLines } from "../../queries/receiveLinesQuery";
-import { useReceiveStatusMutation, useCreateRecount } from "../../queries/receiveMutation";
+import {
+  useReceiveStatusMutation,
+  useCreateRecount,
+} from "../../queries/receiveMutation";
 // import { useTransferLines } from "../../queries/transferLinesQuery";
 
 // import { useCreateRecount } from "../../queries/receiveRecountMutation";
@@ -16,6 +21,12 @@ import {
   TEMPLATES,
 } from "../../utils/excel/downloadTemplate";
 import ImportReceiveExcelModal from "../../components/receive/ImportReceiveExcelModal";
+import StatusBarComponent from "../../components/reusable/StatusBarComponent";
+import {
+  ReceiveStatus,
+  uploadAllowedStatuses,
+  InventorizationReceiveShowRecountQuantity,
+} from "../../constants/statusData";
 
 export default function ReceiveDetail() {
   const { id } = useParams();
@@ -30,7 +41,8 @@ export default function ReceiveDetail() {
   const doc = docs.find((d) => String(d.id) === id);
   const { data: lines = [] } = useReceiveLines(doc?.id);
   const statusMutation = useReceiveStatusMutation();
-  console.log(doc)
+
+  const [selectedRecountEmployees, setSelectedRecountEmployees] = useState([]);
 
   if (!doc)
     return (
@@ -43,7 +55,7 @@ export default function ReceiveDetail() {
     );
 
   const warehouse = warehouses.find((w) => w.id === doc.warehouse_id);
-  
+
   const employees = doc.receiver_user_ids
     .map((eid) => pocketUsers.find((u) => u.id === eid))
     .filter(Boolean);
@@ -63,7 +75,11 @@ export default function ReceiveDetail() {
           if (nextStatus === "in_progress") {
             await preloadLinesFromWarehouse(doc.id, doc.warehouse_id);
           }
-          statusMutation.mutate({ id: doc.id, status: nextStatus });
+          statusMutation.mutate({
+            id: doc.id,
+            prevStatus: doc.status,
+            nextStatus,
+          });
         }}
       >
         → {nextStatus.replace(/_/g, " ")}
@@ -79,13 +95,23 @@ export default function ReceiveDetail() {
     );
   }
 
+  function toggleRecountEmployee(userId) {
+    setSelectedRecountEmployees((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
+    );
+  }
+
+  console.log("+++receivee", doc);
   function createRecount() {
     const recountItems = lines.filter((l) => selectedLines.includes(l.id));
+    const recountPayload = recountItems.map((line) => line.id);
+
     recountMutation.mutate({
       parent_document_id: doc.id,
-      warehouse_id: doc.warehouse_id,
-      employees: doc.employees,
-      items: recountItems,
+      employees: doc.receiver_user_ids,
+      line_ids: recountPayload,
     });
     setSelectedLines([]);
   }
@@ -131,51 +157,61 @@ export default function ReceiveDetail() {
             {doc.name}
           </p>
         </div>
-        {doc?.status === "draft" && (
-          <div className="flex gap-2 flex-wrap">
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() =>
-                downloadTemplate(
-                  TEMPLATES.receiveLines.headers,
-                  TEMPLATES.receiveLines.filename,
-                )
-              }
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Download Template
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setImportOpen(true)}
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Import Excel
-            </button>
+        <div className="flex flex-col items-end justify-between gap-3">
+          <div>
+            <StatusBarComponent
+              documentId={doc.id}
+              statusObject={ReceiveStatus}
+              currentStatus={doc.status}
+              module="receive"
+            />
           </div>
-        )}
+          {uploadAllowedStatuses.includes(doc.status) && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() =>
+                  downloadTemplate(
+                    TEMPLATES.receiveLines.headers,
+                    TEMPLATES.receiveLines.filename,
+                  )
+                }
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Download Template
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setImportOpen(true)}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Import Excel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Info card */}
@@ -262,8 +298,37 @@ export default function ReceiveDetail() {
           <h2 style={{ fontWeight: 600, fontSize: "0.9375rem" }}>
             Receive Lines
           </h2>
-          {selectedLines.length > 0 && (
-            <button className="btn btn-warning btn-sm" onClick={createRecount}>
+          <div className="flex gap-2 flex-wrap">
+            {employees?.map((e) => {
+              const selected = selectedRecountEmployees.includes(e.id);
+
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => toggleRecountEmployee(e.id)}
+                  className={`rounded-2xl px-3 py-1 text-sm border ${
+                    selected
+                      ? "bg-amber-700 border-amber-500 text-white"
+                      : "bg-transparent border-gray-500 text-gray-300"
+                  }`}
+                >
+                  {e.username}
+                </button>
+              );
+            })}
+          </div>
+          {selectedLines?.length > 0 && (
+            <button
+              className="btn btn-warning btn-sm"
+              onClick={createRecount}
+              disabled={selectedRecountEmployees.length === 0}
+              title={
+                selectedRecountEmployees.length === 0
+                  ? "Select at least 1 employee"
+                  : ""
+              }
+            >
               Create Recount ({selectedLines.length})
             </button>
           )}
@@ -279,11 +344,16 @@ export default function ReceiveDetail() {
                 <th>Product</th>
                 <th>Expected</th>
                 <th>Counted</th>
+                {doc?.status &&
+                  InventorizationReceiveShowRecountQuantity.includes(
+                    doc.status,
+                  ) && <th>Recounted qty</th>}
                 <th>Diff</th>
+                <th>Rec_Diff</th>
               </tr>
             </thead>
             <tbody>
-              {lines.length === 0 ? (
+              {lines?.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
@@ -297,13 +367,21 @@ export default function ReceiveDetail() {
                   </td>
                 </tr>
               ) : (
-                lines.map((line) => {
+                lines?.map((line) => {
                   const diff =
                     line.counted_qty === null
                       ? null
                       : line.counted_qty - line.expected_qty;
+
+                  const diffRecount =
+                    line.recount_qty === null
+                      ? null
+                      : line.recount_qty - line.expected_qty;
                   return (
-                    <tr key={line.id}>
+                    <tr
+                      key={line.id}
+                      className={`${line.recount_requested ? "bg-amber-950   " : ""}`}
+                    >
                       <td>
                         <input
                           type="checkbox"
@@ -317,6 +395,14 @@ export default function ReceiveDetail() {
                       <td style={{ fontWeight: 500 }}>{line.product_name}</td>
                       <td className="cell-mono">{line.expected_qty}</td>
                       <td className="cell-mono">{line.counted_qty ?? "—"}</td>
+                      {doc?.status &&
+                        InventorizationReceiveShowRecountQuantity.includes(
+                          doc.status,
+                        ) && (
+                          <td className="cell-mono">
+                            {line.recount_qty ?? "—"}
+                          </td>
+                        )}
                       <td>
                         {diff === null ? (
                           <span className="diff-zero">—</span>
@@ -328,6 +414,21 @@ export default function ReceiveDetail() {
                           <span className="diff-negative">{diff}</span>
                         )}
                       </td>
+                      {line.recount_requested && (
+                        <td>
+                          {diffRecount === null ? (
+                            <span className="diff-zero">—</span>
+                          ) : diffRecount === 0 ? (
+                            <span className="diff-zero">0</span>
+                          ) : diffRecount > 0 ? (
+                            <span className="diff-positive">
+                              +{diffRecount}
+                            </span>
+                          ) : (
+                            <span className="diff-negative">{diffRecount}</span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })

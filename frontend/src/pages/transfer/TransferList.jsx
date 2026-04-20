@@ -160,7 +160,7 @@ export default function TransferList() {
                     {getWarehouseName(doc.to_warehouse_id)}
                   </td>
                   <td>
-                    <span className="badge badge-draft">{doc.scan_type}</span>
+                    <span className={`badge border  ${doc.scan_type === "barcode" ? "text-sky-400 border-sky-400" : doc.scan_type === "loot" ? "bg-green-4000 " : "bg-amber-500"}`}>{doc.scan_type}</span>
                   </td>
                   <td>
                     <StatusBadge status={doc.status} />
@@ -180,7 +180,7 @@ export default function TransferList() {
                       Open →
                     </button>
                   </td>
-                </tr>
+                </tr> 
               ))
             )}
           </tbody>

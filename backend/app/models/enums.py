@@ -1,3 +1,5 @@
+# backend/app/models/enums.py
+
 from enum import Enum
 
 
@@ -9,6 +11,7 @@ class TransferStatus(str, Enum):
     sender_recount_requested = 'sender_recount_requested'
     sender_recount_in_progress = 'sender_recount_in_progress'
     sender_recount_completed = 'sender_recount_completed'
+    waiting_receiver_to_start = 'waiting_receiver_to_start'
     receive_in_progress = 'receive_in_progress'
     receive_completed = 'receive_completed'
     receive_recount_requested = 'receive_recount_requested'
@@ -26,21 +29,23 @@ class InventorizationStatus(str, Enum):
     draft = 'draft'
     waiting_to_start = 'waiting_to_start'
     in_progress = 'in_progress'
-    scanning_completed = 'completed'
+    scanning_completed = 'scanning_completed'
     recount_requested = 'recount_requested'
     recount_in_progress = 'recount_in_progress'
     recount_completed = 'recount_completed'
     confirmed = 'confirmed'
+    closed='closed'
 
 class ReceiveStatus(str, Enum):
     draft = 'draft'
     waiting_to_start = 'waiting_to_start'
     in_progress = 'in_progress'
-    scanning_completed = 'completed'
+    scanning_completed = 'scanning_completed'
     recount_requested = 'recount_requested'
     recount_in_progress = 'recount_in_progress'
     recount_completed = 'recount_completed'
     confirmed = 'confirmed'
+    closed='closed'
 
 
 
@@ -70,3 +75,17 @@ class PriceType(str, Enum):
     discounted = 'discounted'
     markup = 'markup'
     none = 'none'
+
+class AssignmentRole(str, Enum):
+    worker = "worker"              # for inventorization / receive
+    sender = "sender"              # transfer sender phase
+    receiver = "receiver"          # transfer receiver phase
+
+class AssignmentStatus(str, Enum):
+    waiting_to_start = "waiting_to_start"
+    in_progress = "in_progress"
+    scanning_completed = "scanning_completed"
+    recount_requested = "recount_requested"
+    recount_in_progress = "recount_in_progress"
+    recount_completed = "recount_completed"
+    completed = "completed"
