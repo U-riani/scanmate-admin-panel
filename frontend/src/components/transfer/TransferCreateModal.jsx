@@ -27,7 +27,7 @@ export default function CreateTransferModal({ open, onClose }) {
     receiver_user_ids: [],
   });
 
-  console.log("warehouses", currentWarehouseId);
+  console.log("warehouses", warehouses);
   if (!open) return null;
 
   const allowedWarehouses = warehouses.filter((w) => {
@@ -86,7 +86,7 @@ export default function CreateTransferModal({ open, onClose }) {
     });
   }
 
-  const otherWarehouses = allowedWarehouses.filter(
+  const otherWarehouses = warehouses.filter(
     (w) => w.id !== Number(form.from_warehouse_id),
   );
 

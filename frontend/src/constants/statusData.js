@@ -1,3 +1,4 @@
+// frontend\src\constants\statusData.js/
 export const TransferStatus = {
   draft: "draft",
   waiting_to_start: "waiting_to_start",

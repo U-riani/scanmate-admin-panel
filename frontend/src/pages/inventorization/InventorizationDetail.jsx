@@ -378,10 +378,10 @@ export default function InventorizationDetail() {
                       : line.counted_qty - line.expected_qty;
 
                   const diffRecount =
-                    line.recount_qty === null
+                    !line.recount_requested && line.recount_qty == 0
                       ? null
                       : line.recount_qty - line.expected_qty;
-
+                    console.log(diffRecount, line.recount_qty, line.expected_qty, line.recount_requested);
                   return (
                     <tr
                       key={line.id}

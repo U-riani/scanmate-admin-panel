@@ -26,7 +26,7 @@ export const TEMPLATES = {
     filename: "inventorization_lines_template",
   },
   transferLines: {
-    headers: ["barcode", "article_code", "product_name", "expected_qty"],
+    headers: ["Id", "Barcode", "Initial_Quantity", "Scanned_Quantity", "Recounted", "Name",  "Color", "Size", "Price", "ArticCode", "Box_Id"],
     filename: "transfer_lines_template",
   },
 };
