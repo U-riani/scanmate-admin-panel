@@ -1,3 +1,4 @@
+// frontend\src\pages\transfer\TransferDetail.jsx
 import { useParams } from "react-router-dom";
 import { useState } from "react";
 import { useTransfers } from "../../queries/transferQuery";
@@ -181,6 +182,12 @@ export default function TransferDetail() {
   return (
     <div className="space-y-5">
       {/* Header */}
+      <ExcelImportModal
+        open={excelModal}
+        onClose={() => setExcelModal(false)}
+        documentId={doc.id}
+        onImport={importExcel}
+      />
       <div className="flex justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title">
@@ -273,11 +280,6 @@ export default function TransferDetail() {
             warehouseId={doc.from_warehouse_id}
             onSelect={addWarehouseProduct}
           />
-        </div>
-      )}
-      {excelModal && (
-        <div className="glass-card p-5">
-          <ExcelImportModal documentId={doc.id} onImport={importExcel} />
         </div>
       )}
 

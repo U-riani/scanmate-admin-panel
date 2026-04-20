@@ -3,6 +3,8 @@ import { useCreateTransfer } from "../../queries/transferCreateMutation";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
 import { useWarehouseStore } from "../../store/warehouseStore";
+import { mockPocketRoles } from "../../data/mockPocketRoles";
+import { useAuthStore } from "../../store/authStore";
 
 export default function CreateTransferModal({ open, onClose }) {
   const { data: warehouses = [] } = useWarehouses();
@@ -10,10 +12,14 @@ export default function CreateTransferModal({ open, onClose }) {
   const currentWarehouseId = useWarehouseStore((s) => s.currentWarehouseId);
   const createMutation = useCreateTransfer();
 
+  const allowedWarehouseIds = useAuthStore(
+    (state) => state.user?.warehouses || [],
+  );
+
   const [form, setForm] = useState({
     name: "",
     number: "",
-    from_warehouse_id: currentWarehouseId,
+    from_warehouse_id: "",
     to_warehouse_id: "",
     module: "transfer",
     scan_type: "barcode",
@@ -21,19 +27,44 @@ export default function CreateTransferModal({ open, onClose }) {
     receiver_user_ids: [],
   });
 
-  console.log('warehouses', currentWarehouseId);
+  console.log("warehouses", currentWarehouseId);
   if (!open) return null;
 
-  const senderUsers = form.from_warehouse_id
-    ? users.filter((u) => u.warehouses?.includes(form.from_warehouse_id))
-    : [];
+  const allowedWarehouses = warehouses.filter((w) => {
+    return allowedWarehouseIds.includes(w.id);
+  });
+
+  const senderUsers = users.filter((u) => {
+    const role = mockPocketRoles.find((r) => r.id === u.role_id);
+
+    return (
+      (u.warehouses || []).includes(Number(form.from_warehouse_id)) &&
+      role?.modules?.transfer === true &&
+      u.active === true
+    );
+  });
+
+  console.log("senderUsers", senderUsers);
 
   const receiverUsers = form.to_warehouse_id
-    ? users.filter((u) => u.warehouses?.includes(form.to_warehouse_id))
+    ? users.filter((u) => {
+        const role = mockPocketRoles.find((r) => r.id === u.role_id);
+
+        return (
+          (u.warehouses || []).includes(Number(form.to_warehouse_id)) &&
+          role?.modules?.transfer === true &&
+          u.active === true
+        );
+      })
     : [];
 
   function updateField(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+      ...(field === "from_warehouse_id" ? { sender_user_ids: [] } : {}),
+      ...(field === "to_warehouse_id" ? { receiver_user_ids: [] } : {}),
+    }));
   }
 
   function handleSubmit(e) {
@@ -43,7 +74,7 @@ export default function CreateTransferModal({ open, onClose }) {
         setForm({
           name: "",
           number: "",
-          from_warehouse_id: currentWarehouseId,
+          from_warehouse_id: "",
           to_warehouse_id: "",
           module: "transfer",
           scan_type: "barcode",
@@ -55,7 +86,10 @@ export default function CreateTransferModal({ open, onClose }) {
     });
   }
 
-  const otherWarehouses = warehouses.filter((w) => w.id !== currentWarehouseId);
+  const otherWarehouses = allowedWarehouses.filter(
+    (w) => w.id !== Number(form.from_warehouse_id),
+  );
+
   return (
     <div className="glass-modal-backdrop">
       <div
@@ -96,11 +130,17 @@ export default function CreateTransferModal({ open, onClose }) {
             <label className="field-label">From Warehouse</label>
             <select
               value={form.from_warehouse_id}
-              disabled
+              onChange={(e) =>
+                updateField(
+                  "from_warehouse_id",
+                  e.target.value === "" ? "" : Number(e.target.value),
+                )
+              }
               className="glass-select"
-              style={{ opacity: 0.6 }}
+              required
             >
-              {warehouses.map((w) => (
+              <option value="">Select sender warehouse</option>
+              {allowedWarehouses.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
                 </option>
@@ -224,7 +264,15 @@ export default function CreateTransferModal({ open, onClose }) {
           <div className="flex gap-2 pt-2">
             <button
               type="submit"
-              disabled={createMutation.isPending}
+              disabled={
+                createMutation.isPending ||
+                !form.name ||
+                !form.number ||
+                !form.from_warehouse_id ||
+                !form.to_warehouse_id ||
+                form.sender_user_ids.length === 0 ||
+                form.receiver_user_ids.length === 0
+              }
               className="btn btn-primary"
               style={{ flex: 1 }}
             >
