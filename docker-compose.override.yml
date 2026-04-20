@@ -1,0 +1,10 @@
+# ---------- docker-compose.override.yml ----------
+# ეს ფაილი მხოლოდ /home/gtex/scanmate-dev/-ში უნდა იყოს.
+# prod გარემოში ეს ფაილი NO-ი (ან ცარიელი) რომ prod იყენებდეს მხოლოდ base docker-compose.yml-ს.
+#
+# cashflow-ისთვის მსგავსი override გიდგას /home/gtex/cashflow-dev/-ში (port 8080).
+
+services:
+  frontend:
+    ports:
+      - "8091:80"     # dev host port

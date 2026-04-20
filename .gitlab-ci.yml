@@ -1,0 +1,101 @@
+# ---------- .gitlab-ci.yml ----------
+# Pipeline: cashflow-ის მსგავსი სტრატეგია
+#   - push develop-ზე → auto deploy dev (scanmate-dev)
+#   - merge main-ზე   → manual deploy prod (scanmate-prod)
+
+stages:
+  - build
+  - deploy
+
+variables:
+  SERVER_USER: gtex
+  SERVER_HOST: 188.93.90.235
+  SERVER_SSH_PORT: "84"
+
+# ---------- build check (ორივე branch-ზე) ----------
+build:frontend:
+  stage: build
+  image: node:20-alpine
+  script:
+    - cd frontend
+    - npm ci
+    - npm run build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"'
+  cache:
+    key:
+      files:
+        - frontend/package-lock.json
+    paths:
+      - frontend/node_modules/
+
+build:backend:
+  stage: build
+  image: python:3.11-slim
+  script:
+    - cd backend
+    - pip install -r requirements.txt
+    - python -c "import app.main"    # basic import smoke test
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"'
+
+# ---------- deploy: development (auto) ----------
+deploy:dev:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -p $SERVER_SSH_PORT -H $SERVER_HOST >> ~/.ssh/known_hosts
+  script:
+    - |
+      ssh -p $SERVER_SSH_PORT $SERVER_USER@$SERVER_HOST "
+        set -e
+        cd /home/gtex/scanmate-dev
+        git fetch origin develop
+        git reset --hard origin/develop
+        docker compose pull || true
+        docker compose up -d --build
+        docker compose ps
+      "
+  environment:
+    name: development
+    url: https://dev-scanmate.gtexshop.ge
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+  needs:
+    - build:frontend
+    - build:backend
+
+# ---------- deploy: production (manual) ----------
+deploy:prod:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -p $SERVER_SSH_PORT -H $SERVER_HOST >> ~/.ssh/known_hosts
+  script:
+    - |
+      ssh -p $SERVER_SSH_PORT $SERVER_USER@$SERVER_HOST "
+        set -e
+        cd /home/gtex/scanmate-prod
+        git fetch origin main
+        git reset --hard origin/main
+        docker compose pull || true
+        docker compose up -d --build
+        docker compose ps
+      "
+  environment:
+    name: production
+    url: https://scanmate.gtexshop.ge
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual       # აქ manual-ია, რომ prod deploy მხოლოდ კონკრეტული ქცევით მოხდეს
+  needs:
+    - build:frontend
+    - build:backend
