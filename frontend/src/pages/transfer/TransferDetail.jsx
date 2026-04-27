@@ -258,6 +258,7 @@ export default function TransferDetail() {
               if (e.key === "Escape") cancelEdit();
             }}
           />
+          
 
           <button
             type="button"
