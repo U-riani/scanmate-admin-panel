@@ -1,3 +1,5 @@
+// frontend\src\api\inventorizationLinesService.js
+
 import { apiClient } from "./apiClient";
 
 export function getInventorizationLines(documentId) {
@@ -16,4 +18,8 @@ export async function markLinesForRecount(lineIds) {
 export function importInventorizationLines(documentId, rows) {
   console.log(documentId, rows);
   return apiClient.post(`/inventorization/${documentId}/import-lines`, { rows });
+}
+
+export function updateInventorizationLineQuantity(lineId, payload) {
+  return apiClient.patch(`/inventorization/lines/${lineId}/quantity`, payload);
 }

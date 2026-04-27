@@ -1,6 +1,6 @@
 #backend/app/schemas/inventorizations.py
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.schemas.common import ORMModel
 from app.models.enums import DocumentModule, ScanType
 
@@ -89,3 +89,9 @@ class RecountCreateRequest(BaseModel):
 class RecountCreateResponse(BaseModel):
     document: InventorizationRead
     lines: list[InventorizationLineRead]
+
+
+class InventorizationLineQuantityUpdate(BaseModel):
+    expected_qty: int | None = Field(default=None, ge=0)
+    counted_qty: int | None = Field(default=None, ge=0)
+    recount_qty: int | None = Field(default=None, ge=0)

@@ -1,7 +1,7 @@
 # backend/app/schemas/transfers.py
 
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.schemas.common import ORMModel
 from app.models.enums import DocumentModule, ScanType, TransferStatus
 
@@ -114,3 +114,10 @@ class TransferRecountCreateRequest(BaseModel):
 class TransferRecountCreateResponse(BaseModel):
     document: TransferRead
     lines: list[TransferLineRead]
+
+class TransferLineQuantityUpdate(BaseModel):
+    expected_qty: int | None = Field(default=None, ge=0)
+    sent_qty: int | None = Field(default=None, ge=0)
+    received_qty: int | None = Field(default=None, ge=0)
+    sender_recounted_qty: int | None = Field(default=None, ge=0)
+    receiver_recounted_qty: int | None = Field(default=None, ge=0)

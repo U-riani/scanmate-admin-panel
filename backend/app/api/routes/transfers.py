@@ -19,6 +19,7 @@ from app.schemas.transfers import (
     ImportRowsResponse,
     TransferRecountCreateRequest,
     TransferRecountCreateResponse,
+    TransferLineQuantityUpdate
 )
 from app.services.transfers import recalc_transfer_stats
 from app.services.document_assignments import create_transfer_assignments
@@ -204,6 +205,84 @@ def list_lines(doc_id: int, db: Session = Depends(get_db)):
         .order_by(TransferLine.id)
     ).all()
 
+@router.patch("/lines/{line_id}/quantity", response_model=TransferLineRead)
+def update_line_quantity(
+    line_id: int,
+    payload: TransferLineQuantityUpdate,
+    db: Session = Depends(get_db),
+):
+    line = get_or_404(db, TransferLine, line_id, "Transfer line not found")
+
+    doc = get_or_404(
+        db,
+        Transfer,
+        line.document_id,
+        "Transfer not found",
+    )
+
+    allowed_statuses = {
+        TransferStatus.draft,
+        TransferStatus.sender_completed,
+        TransferStatus.sender_recount_completed,
+        TransferStatus.receive_completed,
+        TransferStatus.receive_recount_completed,
+        TransferStatus.closed,
+    }
+
+    if doc.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail="Quantity update is not allowed for this transfer status",
+        )
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    if not update_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No quantity field provided",
+        )
+
+    allowed_fields = {
+        "expected_qty",
+        "sent_qty",
+        "received_qty",
+        "sender_recounted_qty",
+        "receiver_recounted_qty",
+    }
+
+    for field, value in update_data.items():
+        if field not in allowed_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Field '{field}' cannot be updated",
+            )
+
+        if value is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} cannot be empty",
+            )
+
+        if value < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} must be zero or a positive number",
+            )
+
+        setattr(line, field, value)
+
+    line.difference_qty = line.sent_qty - line.received_qty
+
+    db.add(line)
+    db.commit()
+
+    recalc_transfer_stats(db, doc.id)
+    db.commit()
+
+    db.refresh(line)
+
+    return line
 
 @router.patch("/{transfer_id}/sign", response_model=TransferRead)
 def sign_transfer(transfer_id: int, payload: TransferSignRequest, db: Session = Depends(get_db)):

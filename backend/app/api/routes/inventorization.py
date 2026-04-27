@@ -30,6 +30,7 @@ from app.schemas.inventorizations import (
     PreloadLinesRequest,
     RecountCreateRequest,
     RecountCreateResponse,
+    InventorizationLineQuantityUpdate
 )
 from app.services.document_assignments import create_document_assignments_for_document
 from app.api.deps import get_current_pocket_user
@@ -155,7 +156,70 @@ def list_lines(doc_id: int, db: Session = Depends(get_db)):
     ).all()
 
 
+@router.patch("/lines/{line_id}/quantity", response_model=InventorizationLineRead)
+def update_line_quantity(
+    line_id: int,
+    payload: InventorizationLineQuantityUpdate,
+    db: Session = Depends(get_db),
+):
+    line = get_or_404(db, InventorizationLine, line_id, "Line not found")
 
+    doc = get_or_404(
+        db,
+        Inventorization,
+        line.document_id,
+        "Document not found",
+    )
+
+    allowed_statuses = {
+        InventorizationStatus.draft,
+        InventorizationStatus.scanning_completed,
+        InventorizationStatus.recount_completed,
+        InventorizationStatus.confirmed,
+    }
+
+    if doc.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail="Quantity update is not allowed for this document status",
+        )
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    if not update_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No quantity field provided",
+        )
+
+    allowed_fields = {"expected_qty", "counted_qty", "recount_qty"}
+
+    for field, value in update_data.items():
+        if field not in allowed_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Field '{field}' cannot be updated",
+            )
+
+        if field == "expected_qty" and value is None:
+            raise HTTPException(
+                status_code=400,
+                detail="expected_qty cannot be empty",
+            )
+
+        if value is not None and value < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} must be zero or a positive number",
+            )
+
+        setattr(line, field, value)
+
+    db.add(line)
+    db.commit()
+    db.refresh(line)
+
+    return line
 
 
 @router.post("/{doc_id}/preload-lines", response_model=list[InventorizationLineRead])

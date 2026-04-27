@@ -23,6 +23,7 @@ from app.schemas.receives import (
     ImportRowsResponse,
     RecountCreateRequest,
     RecountCreateResponse,
+    ReceiveLineQuantityUpdate
 )
 
 from app.services.document_assignments import create_document_assignments_for_document
@@ -128,6 +129,72 @@ def list_lines(receive_id: int, db: Session = Depends(get_db)):
         .where(ReceiveLine.document_id == receive_id)
     ).all()
 
+@router.patch("/lines/{line_id}/quantity", response_model=ReceiveLineRead)
+def update_line_quantity(
+    line_id: int,
+    payload: ReceiveLineQuantityUpdate,
+    db: Session = Depends(get_db),
+):
+    line = get_or_404(db, ReceiveLine, line_id, "Line not found")
+
+    doc = get_or_404(
+        db,
+        Receive,
+        line.document_id,
+        "Receive document not found",
+    )
+
+    allowed_statuses = {
+        ReceiveStatus.draft,
+        ReceiveStatus.scanning_completed,
+        ReceiveStatus.recount_completed,
+        ReceiveStatus.confirmed,
+    }
+
+    if doc.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail="Quantity update is not allowed for this receive status",
+        )
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    if not update_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No quantity field provided",
+        )
+
+    allowed_fields = {"expected_qty", "counted_qty", "recount_qty"}
+
+    for field, value in update_data.items():
+        if field not in allowed_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Field '{field}' cannot be updated",
+            )
+
+        if field == "expected_qty" and value is None:
+            raise HTTPException(
+                status_code=400,
+                detail="expected_qty cannot be empty",
+            )
+
+        if value is not None and value < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} must be zero or a positive number",
+            )
+
+        setattr(line, field, value)
+
+    line.difference_qty = (line.counted_qty or 0) - line.expected_qty
+
+    db.add(line)
+    db.commit()
+    db.refresh(line)
+
+    return line
 
 @router.post("/{receive_id}/lines/import", response_model=ImportRowsResponse)
 def import_lines(receive_id: int, rows: list[ReceiveLineCreate], db: Session = Depends(get_db)):

@@ -10,6 +10,7 @@ import {
   useUpdateTransferLine,
   useDeleteTransferLine,
   useImportTransferLines,
+  useUpdateTransferLineQuantity,
 } from "../../queries/transferLinesMutation";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
@@ -23,6 +24,7 @@ import {
   TransferStatus,
   TransferStatusLabels,
   uploadAllowedStatuses,
+  allowedTransferStatuses,
 } from "../../constants/statusData";
 import {
   downloadTemplate,
@@ -65,9 +67,11 @@ export default function TransferDetail() {
   const { data: lines = [] } = useTransferLines(doc?.id);
 
   const statusMutation = useTransferStatusMutation();
+
   const addLinesMutation = useAddTransferLines();
   const importLinesMutation = useImportTransferLines();
   const updateLineMutation = useUpdateTransferLine();
+  const updateLineQuantityMutation = useUpdateTransferLineQuantity(doc?.id);
   const deleteLineMutation = useDeleteTransferLine();
 
   const [addModal, setAddModal] = useState(false);
@@ -77,6 +81,9 @@ export default function TransferDetail() {
   const [selectedLines, setSelectedLines] = useState([]);
   const [selectedRecountEmployees, setSelectedRecountEmployees] = useState([]);
   const [recountError, setRecountError] = useState("");
+
+  const [editingCell, setEditingCell] = useState(null);
+  const [editValue, setEditValue] = useState("");
 
   const recountMutation = useCreateTransferRecount();
   console.log(lines);
@@ -156,6 +163,10 @@ export default function TransferDetail() {
       minute: "2-digit",
     });
   }
+
+  const canEditQuantities =
+    doc?.status && allowedTransferStatuses.includes(doc.status);
+
   function createRecount() {
     if (selectedRecountEmployees.length === 0) {
       setRecountError("Please select at least 1 employee for recount.");
@@ -178,6 +189,107 @@ export default function TransferDetail() {
 
     setSelectedLines([]);
     setSelectedRecountEmployees([]);
+  }
+
+  function startEdit(lineId, field, currentValue) {
+    if (!canEditQuantities) return;
+
+    setEditingCell({ lineId, field });
+    setEditValue(currentValue ?? 0);
+  }
+
+  function cancelEdit() {
+    setEditingCell(null);
+    setEditValue("");
+  }
+
+  function confirmEdit(line, field) {
+    const numericValue = Number(editValue);
+
+    if (editValue === "" || Number.isNaN(numericValue) || numericValue < 0) {
+      alert("Please enter a valid quantity.");
+      return;
+    }
+
+    const oldValue = line[field] ?? 0;
+
+    if (String(oldValue) === String(numericValue)) {
+      cancelEdit();
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to update ${field.replaceAll("_", " ")} from ${oldValue} to ${numericValue}?`,
+    );
+
+    if (!confirmed) return;
+
+    updateLineQuantityMutation.mutate({
+      lineId: line.id,
+      payload: {
+        [field]: numericValue,
+      },
+    });
+
+    cancelEdit();
+  }
+
+  function renderEditableQty(line, field) {
+    const isEditing =
+      editingCell?.lineId === line.id && editingCell?.field === field;
+
+    if (!canEditQuantities) {
+      return <span className="cell-mono">{line[field] ?? 0}</span>;
+    }
+
+    if (isEditing) {
+      return (
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min="0"
+            step="1"
+            className="w-20 rounded-md bg-transparent border border-gray-500 px-2 py-1 text-sm font-mono text-center"
+            value={editValue}
+            autoFocus
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") confirmEdit(line, field);
+              if (e.key === "Escape") cancelEdit();
+            }}
+          />
+
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => confirmEdit(line, field)}
+            disabled={updateLineQuantityMutation.isPending}
+          >
+            ✓
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={cancelEdit}
+            disabled={updateLineQuantityMutation.isPending}
+          >
+            ✕
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        className="cell-mono underline decoration-dotted hover:text-cyan-300"
+        onClick={() => startEdit(line.id, field, line[field])}
+        title="Click to edit"
+      >
+        {line[field] ?? 0}
+      </button>
+    );
   }
   return (
     <div className="space-y-5">
@@ -456,7 +568,7 @@ export default function TransferDetail() {
               {lines.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={11}
                     style={{
                       textAlign: "center",
                       color: "var(--text-muted)",
@@ -504,45 +616,16 @@ export default function TransferDetail() {
                       <td className="cell-mono">{line.barcode}</td>
                       <td className="cell-mono">{line.article_code}</td>
                       <td style={{ fontWeight: 500 }}>{line.product_name}</td>
-                      <td className="cell-mono">{line.expected_qty}</td>
-                      <td>
-                        <input
-                          type="number"
-                          value={line.sent_qty}
-                          className="glass-input font-mono"
-                          style={{
-                            width: 80,
-                            padding: "0.3rem 0.5rem",
-                            textAlign: "center",
-                          }}
-                          onChange={(e) =>
-                            updateLineMutation.mutate({
-                              lineId: line.id,
-                              data: { sent_qty: Number(e.target.value) },
-                            })
-                          }
-                        />
+                      <td className="cell-mono">
+                        {renderEditableQty(line, "expected_qty")}
                       </td>
+                      <td>{renderEditableQty(line, "sent_qty")}</td>
+                      <td>{renderEditableQty(line, "received_qty")}</td>
+                      <td>{renderEditableQty(line, "sender_recounted_qty")}</td>
+
                       <td>
-                        <input
-                          type="number"
-                          value={line.received_qty}
-                          className="glass-input font-mono"
-                          style={{
-                            width: 80,
-                            padding: "0.3rem 0.5rem",
-                            textAlign: "center",
-                          }}
-                          onChange={(e) =>
-                            updateLineMutation.mutate({
-                              lineId: line.id,
-                              data: { received_qty: Number(e.target.value) },
-                            })
-                          }
-                        />
+                        {renderEditableQty(line, "receiver_recounted_qty")}
                       </td>
-                      <td>{line.sender_recounted_qty}</td>
-                      <td>{line.receiver_recounted_qty}</td>
                       <td>
                         {diff === 0 ? (
                           <span className="diff-zero">0</span>

@@ -984,6 +984,15 @@ def list_lines(
 
         ).all()
 
+        def get_transfer_expected_qty_for_pocket(line, resolved_role):
+            if resolved_role == AssignmentRole.receiver:
+                if line.sender_recounted_qty is not None and line.sender_recounted_qty > 0:
+                    return line.sender_recounted_qty
+
+                return line.sent_qty or 0
+
+            return line.expected_qty or 0
+
         return [
 
             PocketDocumentLine(
@@ -1006,16 +1015,18 @@ def list_lines(
 
                 box_id=line.box_id,
 
-                expected_qty=line.expected_qty,
+                expected_qty=get_transfer_expected_qty_for_pocket(line, resolved_role),
 
                 counted_qty=(
-                    line.base_sender_recount_qty
+                    line.sender_recounted_qty
                     if resolved_role == AssignmentRole.sender and line.sender_recount_requested
                     else (
-                        line.base_receiver_recount_qty
+                        line.receiver_recounted_qty
                         if resolved_role == AssignmentRole.receiver and line.receiver_recount_requested
                         else (
-                            line.base_sent_qty if resolved_role == AssignmentRole.sender else line.base_received_qty
+                            line.sent_qty
+                            if resolved_role == AssignmentRole.sender
+                            else line.received_qty
                         )
                     )
                 ),

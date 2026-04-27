@@ -1,3 +1,4 @@
+// frontend\src\api\transferLinesService.js
 import { apiClient } from "./apiClient";
 
 export function getTransferLines(documentId) {
@@ -33,4 +34,8 @@ export function updateTransferLine(lineId, data) {
 export async function deleteTransferLine(lineId) {
   await apiClient.delete(`/transfers/lines/${lineId}`);
   return true;
+}
+
+export function updateTransferLineQuantity(lineId, payload) {
+  return apiClient.patch(`/transfers/lines/${lineId}/quantity`, payload);
 }

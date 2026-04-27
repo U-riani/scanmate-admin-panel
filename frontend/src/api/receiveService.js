@@ -38,3 +38,7 @@ export function createRecountDocument(payload) {
   console.log("payload", payload);
   return apiClient.post("/receive/recount", payload);
 }
+
+export function updateReceiveLineQuantity(lineId, payload) {
+  return apiClient.patch(`/receive/lines/${lineId}/quantity`, payload);
+}

@@ -1,3 +1,4 @@
+# backend/app/api/router.py
 from fastapi import APIRouter
 
 from app.api.routes import auth, warehouses, website_roles, website_users, pocket_roles, pocket_users, transfers, inventorization, pocket_api, prices, receive

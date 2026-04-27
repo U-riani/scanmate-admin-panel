@@ -5,7 +5,10 @@ import { useParams } from "react-router-dom";
 import { useReceives } from "../../queries/receiveQuery";
 import { useWarehouses } from "../../queries/warehouseQuery";
 import { usePocketUsers } from "../../queries/pocketUsersQuery";
-import { useReceiveLines } from "../../queries/receiveLinesQuery";
+import {
+  useReceiveLines,
+  useUpdateReceiveLineQuantity,
+} from "../../queries/receiveLinesQuery";
 import {
   useReceiveStatusMutation,
   useCreateRecount,
@@ -26,12 +29,16 @@ import {
   ReceiveStatus,
   uploadAllowedStatuses,
   InventorizationReceiveShowRecountQuantity,
+  allowedInventorizationAndReceiveStatuses,
 } from "../../constants/statusData";
 
 export default function ReceiveDetail() {
   const { id } = useParams();
   const [selectedLines, setSelectedLines] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
+
+  const [editingCell, setEditingCell] = useState(null);
+  const [editValue, setEditValue] = useState("");
 
   const { data: docs = [] } = useReceives();
   const { data: warehouses = [] } = useWarehouses();
@@ -40,6 +47,12 @@ export default function ReceiveDetail() {
 
   const doc = docs.find((d) => String(d.id) === id);
   const { data: lines = [] } = useReceiveLines(doc?.id);
+
+  const updateLineQuantityMutation = useUpdateReceiveLineQuantity(doc?.id);
+  const canEditQuantities =
+    doc?.status &&
+    allowedInventorizationAndReceiveStatuses.includes(doc.status);
+
   const statusMutation = useReceiveStatusMutation();
 
   const [selectedRecountEmployees, setSelectedRecountEmployees] = useState([]);
@@ -125,6 +138,108 @@ export default function ReceiveDetail() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  function startEdit(lineId, field, currentValue) {
+    if (!canEditQuantities) return;
+
+    setEditingCell({ lineId, field });
+    setEditValue(currentValue ?? "");
+  }
+
+  function cancelEdit() {
+    setEditingCell(null);
+    setEditValue("");
+  }
+
+  function confirmEdit(line, field) {
+    const numericValue = Number(editValue);
+
+    if (editValue === "" || Number.isNaN(numericValue) || numericValue < 0) {
+      alert("Please enter a valid quantity.");
+      return;
+    }
+
+    const oldValue = line[field] ?? "";
+
+    if (String(oldValue) === String(numericValue)) {
+      cancelEdit();
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to update ${field.replace("_", " ")} from ${
+        oldValue === "" ? "—" : oldValue
+      } to ${numericValue}?`,
+    );
+
+    if (!confirmed) return;
+
+    updateLineQuantityMutation.mutate({
+      lineId: line.id,
+      payload: {
+        [field]: numericValue,
+      },
+    });
+
+    cancelEdit();
+  }
+
+  function renderEditableQty(line, field) {
+    const isEditing =
+      editingCell?.lineId === line.id && editingCell?.field === field;
+
+    if (!canEditQuantities) {
+      return <span>{line[field] ?? "—"}</span>;
+    }
+
+    if (isEditing) {
+      return (
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min="0"
+            className="w-20 rounded-md bg-transparent border border-gray-500 px-2 py-1 text-sm"
+            value={editValue}
+            autoFocus
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") confirmEdit(line, field);
+              if (e.key === "Escape") cancelEdit();
+            }}
+          />
+
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => confirmEdit(line, field)}
+            disabled={updateLineQuantityMutation.isPending}
+          >
+            ✓
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={cancelEdit}
+            disabled={updateLineQuantityMutation.isPending}
+          >
+            ✕
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        className="cell-mono underline decoration-dotted hover:text-cyan-300"
+        onClick={() => startEdit(line.id, field, line[field])}
+        title="Click to edit"
+      >
+        {line[field] ?? "—"}
+      </button>
+    );
   }
 
   return (
@@ -356,7 +471,14 @@ export default function ReceiveDetail() {
               {lines?.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={
+                      doc?.status &&
+                      InventorizationReceiveShowRecountQuantity.includes(
+                        doc.status,
+                      )
+                        ? 9
+                        : 8
+                    }
                     style={{
                       textAlign: "center",
                       color: "var(--text-muted)",
@@ -393,14 +515,19 @@ export default function ReceiveDetail() {
                       <td className="cell-mono">{line.barcode}</td>
                       <td className="cell-mono">{line.article_code}</td>
                       <td style={{ fontWeight: 500 }}>{line.product_name}</td>
-                      <td className="cell-mono">{line.expected_qty}</td>
-                      <td className="cell-mono">{line.counted_qty ?? "—"}</td>
+                      <td className="cell-mono">
+                        {renderEditableQty(line, "expected_qty")}
+                      </td>
+
+                      <td className="cell-mono">
+                        {renderEditableQty(line, "counted_qty")}
+                      </td>
                       {doc?.status &&
                         InventorizationReceiveShowRecountQuantity.includes(
                           doc.status,
                         ) && (
                           <td className="cell-mono">
-                            {line.recount_qty ?? "—"}
+                            {renderEditableQty(line, "recount_qty")}
                           </td>
                         )}
                       <td>

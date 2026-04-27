@@ -1,3 +1,4 @@
+// frontend\src\queries\transferLinesMutation.js
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "../app/queryKeys";
 import {
@@ -5,6 +6,7 @@ import {
   deleteTransferLine,
   updateTransferLine,
   importTransferLines,
+  updateTransferLineQuantity,
 } from "../api/transferLinesService";
 
 export function useAddTransferLines() {
@@ -53,6 +55,25 @@ export function useDeleteTransferLine() {
     mutationFn: deleteTransferLine,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transferLines"] });
+    },
+  });
+}
+
+export function useUpdateTransferLineQuantity(documentId) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ lineId, payload }) =>
+      updateTransferLineQuantity(lineId, payload),
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.transferLines(documentId),
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.transfers,
+      });
     },
   });
 }
