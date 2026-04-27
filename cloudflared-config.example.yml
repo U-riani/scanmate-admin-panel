@@ -1,0 +1,25 @@
+# ---------- /etc/cloudflared/config.yml (UPDATE) ----------
+# არსებულ cloudflared config-ს დაემატება 2 ახალი ingress rule (scanmate-ისთვის).
+# Tunnel ID იგივეა — 447e5498-a87f-4fd6-b155-a9f093481834
+#
+# ნიმუში (არსებული cashflow rules + ახალი scanmate rules).
+# SSH-ით უნდა შეცვალო: sudo nano /etc/cloudflared/config.yml
+
+tunnel: 447e5498-a87f-4fd6-b155-a9f093481834
+credentials-file: /etc/cloudflared/447e5498-a87f-4fd6-b155-a9f093481834.json
+
+ingress:
+  # არსებული cashflow routes (ხელშეუხებელი)
+  - hostname: cashflow.gtexshop.ge
+    service: http://localhost:80
+  - hostname: dev-cashflow.gtexshop.ge
+    service: http://localhost:8080
+
+  # --- ახალი scanmate routes ---
+  - hostname: scanmate.gtexshop.ge
+    service: http://localhost:8090
+  - hostname: dev-scanmate.gtexshop.ge
+    service: http://localhost:8091
+
+  # fallback (აუცილებელია)
+  - service: http_status:404
